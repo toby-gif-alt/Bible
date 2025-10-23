@@ -1467,7 +1467,6 @@
     function setBlessing(){
       const r = blessings[Math.floor(Math.random()*blessings.length)];
       const p = parseRef(r);
-      if (!p) return;
       getPassage('KJV', p.book, p.chapter, p.v1, p.v2).then(vs => {
         document.getElementById('randomBlessing').innerHTML = `“${escapeHtml(vs.map(x=>x.t).join(' '))}” — ${r}`;
       });
