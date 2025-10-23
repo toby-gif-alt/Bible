@@ -158,6 +158,23 @@
             <!-- dynamic prompts / content per day -->
           </div>
 
+          <!-- Theologians & Traditions Panel -->
+          <div class="border rounded-xl overflow-hidden">
+            <button id="theologiansToggle" class="w-full px-4 py-3 bg-slate-100 hover:bg-slate-200 flex items-center justify-between">
+              <span class="font-semibold">Theologians &amp; Traditions</span>
+              <span id="theologiansChevron">▼</span>
+            </button>
+            <div id="theologiansContent" class="p-4 bg-white hidden">
+              <div id="theologiansCards"></div>
+              <div class="mt-4 border-t pt-4">
+                <button id="compareVoicesToggle" class="px-3 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-sm">
+                  Compare voices
+                </button>
+                <div id="compareVoicesContent" class="mt-3 hidden p-3 bg-slate-50 rounded-lg text-sm"></div>
+              </div>
+            </div>
+          </div>
+
           <div>
             <label class="block text-sm font-semibold">Your notes</label>
             <textarea id="studyNotes" class="w-full mt-1 border rounded-lg p-3 h-36" placeholder="Write prayers, observations, connections…"></textarea>
@@ -417,6 +434,9 @@
       const dow = ((new Date().getDay()+6)%7)+1; // Mon=1..Sun=7
       renderLens(dow, parsed);
 
+      // Load theology commentary
+      await renderTheologians(ref, parsed);
+
       // Load notes
       const notesKey = `notes:${ref}`;
       document.getElementById('studyNotes').value = LS.get(notesKey, '');
@@ -526,6 +546,166 @@
         `Write one concrete next step for this week.`,
         `Share with a friend for encouragement.`
       ];
+    }
+
+    // Theologians & Traditions rendering
+    async function renderTheologians(ref, parsed){
+      const cardsEl = document.getElementById('theologiansCards');
+      const toggleBtn = document.getElementById('theologiansToggle');
+      const contentEl = document.getElementById('theologiansContent');
+      const chevron = document.getElementById('theologiansChevron');
+      
+      // Setup toggle handler
+      toggleBtn.onclick = () => {
+        const isHidden = contentEl.classList.contains('hidden');
+        contentEl.classList.toggle('hidden');
+        chevron.textContent = isHidden ? '▲' : '▼';
+      };
+
+      // Load commentary data
+      try {
+        const response = await fetch('theology/commentary.json');
+        if(!response.ok) throw new Error('File not found');
+        const allCommentary = await response.json();
+        
+        // Filter matching entries
+        const matches = allCommentary.filter(entry => matchesRef(entry.ref, ref, parsed));
+        
+        if(matches.length === 0){
+          cardsEl.innerHTML = '<p class="text-sm text-slate-500">No commentary yet for this passage.</p>';
+          return;
+        }
+
+        // Group by tradition, sort by century
+        const grouped = {};
+        for(const entry of matches){
+          if(!grouped[entry.tradition]) grouped[entry.tradition] = [];
+          grouped[entry.tradition].push(entry);
+        }
+        for(const tradition in grouped){
+          grouped[tradition].sort((a,b) => a.century - b.century);
+        }
+
+        // Render cards
+        let html = '';
+        for(const tradition in grouped){
+          html += `<div class="mb-4"><h4 class="font-semibold text-sm text-slate-700 mb-2">${escapeHtml(tradition)}</h4>`;
+          for(const entry of grouped[tradition]){
+            html += renderTheologyCard(entry);
+          }
+          html += '</div>';
+        }
+        cardsEl.innerHTML = html;
+
+        // Setup compare voices
+        setupCompareVoices(matches);
+      } catch(err) {
+        cardsEl.innerHTML = '<p class="text-sm text-slate-500">No commentary yet for this passage.</p>';
+      }
+    }
+
+    function matchesRef(entryRef, currentRef, parsed){
+      // Exact match
+      if(entryRef === currentRef) return true;
+      
+      // Parse entry ref to check for overlapping ranges
+      const entryParsed = parseRef(entryRef);
+      if(!entryParsed || entryParsed.book !== parsed.book) return false;
+      if(entryParsed.chapter !== parsed.chapter) return false;
+      
+      // Check verse overlap for ranges
+      const ev1 = entryParsed.v1 || 1;
+      const ev2 = entryParsed.v2 || ev1;
+      const cv1 = parsed.v1 || 1;
+      const cv2 = parsed.v2 || cv1;
+      
+      return (ev1 <= cv2 && ev2 >= cv1);
+    }
+
+    function renderTheologyCard(entry){
+      const century = entry.century < 0 ? `${Math.abs(entry.century)} BC` : `${entry.century}th c.`;
+      let content = '';
+      
+      if(entry.mode === 'excerpt' && entry.excerpt){
+        content = `<p class="text-sm italic text-slate-700">"${escapeHtml(entry.excerpt)}"</p>`;
+      } else if(entry.mode === 'summary' && entry.summary){
+        content = `<p class="text-sm text-slate-700">${escapeHtml(entry.summary)}</p>`;
+      }
+
+      let takeawaysHtml = '';
+      if(entry.takeaways && entry.takeaways.length > 0){
+        takeawaysHtml = '<ul class="mt-2 text-xs list-disc ml-4 text-slate-600">';
+        for(const t of entry.takeaways){
+          takeawaysHtml += `<li>${escapeHtml(t)}</li>`;
+        }
+        takeawaysHtml += '</ul>';
+      }
+
+      return `
+        <div class="mb-3 p-3 bg-slate-50 rounded-lg">
+          <div class="flex items-start justify-between">
+            <div>
+              <div class="font-semibold text-sm">${escapeHtml(entry.theologian)}</div>
+              <div class="text-xs text-slate-500">${escapeHtml(entry.work)} (${century})</div>
+            </div>
+          </div>
+          <div class="mt-2">
+            ${content}
+            ${takeawaysHtml}
+          </div>
+          <div class="mt-2 text-xs">
+            <a href="${escapeHtml(entry.url)}" target="_blank" rel="noopener noreferrer" class="text-indigo-600 hover:underline">
+              ${escapeHtml(entry.citation)}
+            </a>
+          </div>
+        </div>
+      `;
+    }
+
+    function setupCompareVoices(matches){
+      const toggleBtn = document.getElementById('compareVoicesToggle');
+      const contentEl = document.getElementById('compareVoicesContent');
+      
+      toggleBtn.onclick = () => {
+        const isHidden = contentEl.classList.contains('hidden');
+        if(isHidden){
+          contentEl.innerHTML = generateSynthesis(matches);
+          contentEl.classList.remove('hidden');
+          toggleBtn.textContent = 'Hide synthesis';
+        } else {
+          contentEl.classList.add('hidden');
+          toggleBtn.textContent = 'Compare voices';
+        }
+      };
+    }
+
+    function generateSynthesis(matches){
+      if(matches.length === 0) return '';
+      if(matches.length === 1){
+        return `<p>${escapeHtml(matches[0].theologian)} offers a ${escapeHtml(matches[0].tradition.toLowerCase())} perspective emphasizing ${escapeHtml(matches[0].takeaways[0]?.toLowerCase() || 'divine truth')}.</p>`;
+      }
+
+      // Identify common themes
+      const traditions = [...new Set(matches.map(m => m.tradition))];
+      const theologians = matches.map(m => m.theologian);
+      
+      // Build a neutral synthesis
+      let synthesis = `Across ${traditions.length > 1 ? traditions.join(' and ') : traditions[0]} tradition${traditions.length > 1 ? 's' : ''}, `;
+      synthesis += `${theologians.slice(0, -1).join(', ')}${theologians.length > 2 ? ',' : ''} and ${theologians[theologians.length - 1]} `;
+      synthesis += `converge on God's initiative in salvation, yet emphasize different facets. `;
+      
+      // Highlight specific emphases
+      const emphases = matches.map(m => `${m.theologian} stresses ${m.takeaways[0]?.toLowerCase() || 'divine grace'}`);
+      synthesis += emphases.join(', while ') + '. ';
+      
+      // Note tensions or complementarity
+      if(traditions.length > 1){
+        synthesis += `These voices, though from different eras and contexts, complement one another in presenting the fullness of the gospel message.`;
+      } else {
+        synthesis += `Together they provide a rich, multi-layered understanding of this passage.`;
+      }
+      
+      return `<p>${escapeHtml(synthesis)}</p>`;
     }
 
     // Bible view
