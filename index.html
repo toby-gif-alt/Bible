@@ -84,6 +84,15 @@
         </section>
 
         <section>
+          <h3 class="font-semibold text-slate-700">Learning Track</h3>
+          <p class="text-sm text-slate-500 mb-2">Choose how you'd like to progress through Scripture study.</p>
+          <button id="trackBtn" class="w-full text-left px-3 py-2 rounded-lg bg-slate-100 hover:bg-slate-200">
+            <span class="text-sm font-semibold">Learning track: </span>
+            <span id="currentTrackName" class="text-sm text-slate-700">Whole Bible (standard)</span>
+          </button>
+        </section>
+
+        <section>
           <h3 class="font-semibold text-slate-700">Group / Family Mode</h3>
           <p class="text-sm text-slate-500 mb-2">Enable discussion questions for different age groups (Child, Teen, Adult).</p>
           <label class="flex items-center gap-2 cursor-pointer">
@@ -278,6 +287,38 @@
           </button>
         </div>
         <div id="weeksList" class="space-y-2"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Track Picker Modal -->
+  <div id="trackPickerModal" class="fixed inset-0 z-50 hidden">
+    <div class="absolute inset-0 bg-black/40" id="trackPickerBackdrop"></div>
+    <div class="absolute inset-x-4 top-20 max-w-2xl mx-auto bg-white rounded-2xl shadow-xl overflow-hidden">
+      <div class="p-4 border-b flex items-center justify-between bg-slate-50">
+        <h3 class="text-lg font-semibold">Choose Learning Track</h3>
+        <button id="trackPickerClose" class="p-2 rounded hover:bg-slate-200" aria-label="Close">✕</button>
+      </div>
+      <div class="p-4 space-y-3">
+        <button class="track-option w-full text-left px-4 py-4 rounded-lg border-2 hover:bg-slate-50 transition-colors" data-track="john-first">
+          <div class="font-semibold text-base">John-first (new to Bible)</div>
+          <div class="text-sm text-slate-600 mt-1">Start with 8-12 key verses from John's Gospel, then continue through the New Testament. Perfect for beginners.</div>
+        </button>
+        
+        <button class="track-option w-full text-left px-4 py-4 rounded-lg border-2 hover:bg-slate-50 transition-colors" data-track="nt-first">
+          <div class="font-semibold text-base">New Testament first</div>
+          <div class="text-sm text-slate-600 mt-1">Cover all New Testament chapters before moving to the Old Testament. Ideal for new believers.</div>
+        </button>
+        
+        <button class="track-option w-full text-left px-4 py-4 rounded-lg border-2 hover:bg-slate-50 transition-colors" data-track="whole-bible">
+          <div class="font-semibold text-base">Whole Bible (standard)</div>
+          <div class="text-sm text-slate-600 mt-1">Foundational verses followed by complete Bible coverage. The balanced default approach.</div>
+        </button>
+        
+        <button class="track-option w-full text-left px-4 py-4 rounded-lg border-2 hover:bg-slate-50 transition-colors" data-track="gospels-harmony">
+          <div class="font-semibold text-base">Gospels in harmony (advanced)</div>
+          <div class="text-sm text-slate-600 mt-1">Rotate through Matthew, Mark, Luke, and John chapter by chapter. For those studying the Gospel accounts in parallel.</div>
+        </button>
       </div>
     </div>
   </div>
@@ -490,6 +531,7 @@
     state.secondary = state.secondary || 'none';
     state.groupMode = state.groupMode || false;
     state.weekOverride = state.weekOverride || null;
+    state.track = state.track || 'whole-bible';
     LS.set('state', state);
 
     // Generate COVERAGE queue (one verse per chapter for complete Bible)
@@ -554,9 +596,25 @@
       };
     }
 
-    // Build complete PLAN: BIG_VERSES followed by COVERAGE (excluding duplicates)
+    // Build complete PLAN based on selected track
     let PLAN = [];
     function buildPlan() {
+      const track = state.track || 'whole-bible';
+      
+      if (track === 'john-first') {
+        return buildJohnFirstPlan();
+      } else if (track === 'nt-first') {
+        return buildNTFirstPlan();
+      } else if (track === 'gospels-harmony') {
+        return buildGospelsHarmonyPlan();
+      } else {
+        // 'whole-bible' - default
+        return buildWholeBiblePlan();
+      }
+    }
+    
+    // Whole Bible (standard): BIG_VERSES followed by COVERAGE
+    function buildWholeBiblePlan() {
       const plan = [...BIG_VERSES];
       const seen = new Set(BIG_VERSES.map(ref => normalizeRef(ref)));
       
@@ -567,6 +625,163 @@
           seen.add(normalized);
         }
       }
+      return plan;
+    }
+    
+    // John-first: 8-12 big verses from John, then continue with NT plan
+    function buildJohnFirstPlan() {
+      const plan = [];
+      const seen = new Set();
+      
+      // Get 8-12 big John verses
+      const johnBigVerses = BIG_VERSES.filter(ref => ref.startsWith('John '));
+      for (const ref of johnBigVerses) {
+        plan.push(ref);
+        seen.add(normalizeRef(ref));
+      }
+      
+      // Then add NT coverage (excluding already covered)
+      const ntCoverage = [];
+      for (const book of BOOKS.NT) {
+        const chapterCount = CHAPTER_COUNTS[book];
+        if (!chapterCount) continue;
+        
+        for (let chapter = 1; chapter <= chapterCount; chapter++) {
+          ntCoverage.push(`${book} ${chapter}:1`);
+        }
+      }
+      
+      for (const ref of ntCoverage) {
+        const normalized = normalizeRef(ref);
+        if (!seen.has(normalized)) {
+          plan.push(ref);
+          seen.add(normalized);
+        }
+      }
+      
+      // Then add remaining BIG_VERSES (OT)
+      for (const ref of BIG_VERSES) {
+        const normalized = normalizeRef(ref);
+        if (!seen.has(normalized)) {
+          plan.push(ref);
+          seen.add(normalized);
+        }
+      }
+      
+      // Finally add OT coverage
+      for (const book of BOOKS.OT) {
+        const chapterCount = CHAPTER_COUNTS[book];
+        if (!chapterCount) continue;
+        
+        for (let chapter = 1; chapter <= chapterCount; chapter++) {
+          const ref = `${book} ${chapter}:1`;
+          const normalized = normalizeRef(ref);
+          if (!seen.has(normalized)) {
+            plan.push(ref);
+            seen.add(normalized);
+          }
+        }
+      }
+      
+      return plan;
+    }
+    
+    // NT first: all NT chapters before OT coverage
+    function buildNTFirstPlan() {
+      const plan = [];
+      const seen = new Set();
+      
+      // First add all NT BIG_VERSES
+      for (const ref of BIG_VERSES) {
+        const parsed = parseRef(ref);
+        if (parsed && BOOKS.NT.includes(parsed.book)) {
+          plan.push(ref);
+          seen.add(normalizeRef(ref));
+        }
+      }
+      
+      // Then add all NT coverage
+      for (const book of BOOKS.NT) {
+        const chapterCount = CHAPTER_COUNTS[book];
+        if (!chapterCount) continue;
+        
+        for (let chapter = 1; chapter <= chapterCount; chapter++) {
+          const ref = `${book} ${chapter}:1`;
+          const normalized = normalizeRef(ref);
+          if (!seen.has(normalized)) {
+            plan.push(ref);
+            seen.add(normalized);
+          }
+        }
+      }
+      
+      // Then add OT BIG_VERSES
+      for (const ref of BIG_VERSES) {
+        const parsed = parseRef(ref);
+        if (parsed && BOOKS.OT.includes(parsed.book)) {
+          const normalized = normalizeRef(ref);
+          if (!seen.has(normalized)) {
+            plan.push(ref);
+            seen.add(normalized);
+          }
+        }
+      }
+      
+      // Finally add OT coverage
+      for (const book of BOOKS.OT) {
+        const chapterCount = CHAPTER_COUNTS[book];
+        if (!chapterCount) continue;
+        
+        for (let chapter = 1; chapter <= chapterCount; chapter++) {
+          const ref = `${book} ${chapter}:1`;
+          const normalized = normalizeRef(ref);
+          if (!seen.has(normalized)) {
+            plan.push(ref);
+            seen.add(normalized);
+          }
+        }
+      }
+      
+      return plan;
+    }
+    
+    // Gospels in harmony: rotate Matthew/Mark/Luke/John chapter focuses (by middle verse)
+    function buildGospelsHarmonyPlan() {
+      const plan = [];
+      const gospels = ['Matthew', 'Mark', 'Luke', 'John'];
+      const maxChapters = Math.max(...gospels.map(book => CHAPTER_COUNTS[book]));
+      
+      // Interleave chapters from all four gospels
+      for (let chapter = 1; chapter <= maxChapters; chapter++) {
+        for (const book of gospels) {
+          const chapterCount = CHAPTER_COUNTS[book];
+          if (chapter <= chapterCount) {
+            plan.push(`${book} ${chapter}:1`);
+          }
+        }
+      }
+      
+      // Then add remaining NT books
+      const remainingNT = BOOKS.NT.filter(book => !gospels.includes(book));
+      for (const book of remainingNT) {
+        const chapterCount = CHAPTER_COUNTS[book];
+        if (!chapterCount) continue;
+        
+        for (let chapter = 1; chapter <= chapterCount; chapter++) {
+          plan.push(`${book} ${chapter}:1`);
+        }
+      }
+      
+      // Then add OT
+      for (const book of BOOKS.OT) {
+        const chapterCount = CHAPTER_COUNTS[book];
+        if (!chapterCount) continue;
+        
+        for (let chapter = 1; chapter <= chapterCount; chapter++) {
+          plan.push(`${book} ${chapter}:1`);
+        }
+      }
+      
       return plan;
     }
     
@@ -2538,6 +2753,91 @@
     document.getElementById('weekPickerBackdrop').onclick = () => weekPickerModal.close();
     document.getElementById('weekPickerClose').onclick = () => weekPickerModal.close();
     document.getElementById('jumpToThisWeekBtn').onclick = () => jumpToThisWeek();
+
+    // Track Picker Modal
+    const trackPickerModal = {
+      open() {
+        document.getElementById('trackPickerModal').classList.remove('hidden');
+        updateTrackSelection();
+      },
+      close() {
+        document.getElementById('trackPickerModal').classList.add('hidden');
+      }
+    };
+
+    // Get track display name
+    function getTrackName(track) {
+      const names = {
+        'john-first': 'John-first (new to Bible)',
+        'nt-first': 'New Testament first',
+        'whole-bible': 'Whole Bible (standard)',
+        'gospels-harmony': 'Gospels in harmony (advanced)'
+      };
+      return names[track] || 'Whole Bible (standard)';
+    }
+
+    // Update track selection UI
+    function updateTrackSelection() {
+      const options = document.querySelectorAll('.track-option');
+      options.forEach(option => {
+        const track = option.dataset.track;
+        if (track === state.track) {
+          option.classList.add('border-indigo-600', 'bg-indigo-50');
+          option.classList.remove('border-slate-200');
+        } else {
+          option.classList.remove('border-indigo-600', 'bg-indigo-50');
+          option.classList.add('border-slate-200');
+        }
+      });
+    }
+
+    // Select track and regenerate plan
+    function selectTrack(track) {
+      const currentWeek = weekIndex() + 1;
+      
+      // Update state
+      state.track = track;
+      LS.set('state', state);
+      
+      // Update menu display
+      document.getElementById('currentTrackName').textContent = getTrackName(track);
+      
+      // Regenerate PLAN
+      PLAN = buildPlan();
+      
+      // Close modal
+      trackPickerModal.close();
+      
+      // If we're on a future week override, keep it; otherwise stay on current week
+      if (state.weekOverride && state.weekOverride >= currentWeek) {
+        // Keep the override but it will now point to the new plan
+        renderStudy();
+      } else {
+        // Stay on current week
+        state.weekOverride = null;
+        LS.set('state', state);
+        renderStudy();
+      }
+      
+      toast(`Switched to ${getTrackName(track)}`);
+    }
+
+    // Setup track picker handlers
+    document.getElementById('trackBtn').onclick = () => trackPickerModal.open();
+    document.getElementById('trackPickerBackdrop').onclick = () => trackPickerModal.close();
+    document.getElementById('trackPickerClose').onclick = () => trackPickerModal.close();
+    
+    // Attach click handlers to track options
+    const trackOptions = document.querySelectorAll('.track-option');
+    trackOptions.forEach(option => {
+      option.onclick = () => {
+        const track = option.dataset.track;
+        selectTrack(track);
+      };
+    });
+    
+    // Initialize track display in menu
+    document.getElementById('currentTrackName').textContent = getTrackName(state.track);
 
     // Helpers
     function toast(msg){
