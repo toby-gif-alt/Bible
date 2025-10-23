@@ -154,161 +154,15 @@
     <!-- Study -->
     <section id="study" class="hidden">
       <div class="rounded-2xl bg-white shadow p-4">
-        <div class="flex items-center justify-between gap-2">
-          <div>
-            <h2 class="font-semibold">Weekly Study</h2>
-            <p class="text-sm text-slate-600" id="studyRef"></p>
-          </div>
-          <button class="text-sm px-3 py-2 rounded-lg bg-indigo-600 text-white" id="openInBibleBtn">Open in Bible</button>
+        <!-- Header -->
+        <div class="mb-4">
+          <h2 class="text-xl font-semibold" id="studyDayHeading">Monday Study</h2>
+          <p class="text-sm text-slate-600 mt-1" id="studyVerseInfo"></p>
+          <a href="#" id="openFullChapterLink" class="text-xs text-indigo-600 hover:underline mt-1 inline-block">Open full chapter →</a>
         </div>
 
-        <!-- Day lenses -->
-        <div class="mt-3 flex overflow-x-auto gap-2 scroll-snap-x thin">
-          <button data-day="1" class="lensBtn snap-center px-3 py-2 rounded-full bg-slate-200">Mon</button>
-          <button data-day="2" class="lensBtn snap-center px-3 py-2 rounded-full bg-slate-200">Tue</button>
-          <button data-day="3" class="lensBtn snap-center px-3 py-2 rounded-full bg-slate-200">Wed</button>
-          <button data-day="4" class="lensBtn snap-center px-3 py-2 rounded-full bg-slate-200">Thu</button>
-          <button data-day="5" class="lensBtn snap-center px-3 py-2 rounded-full bg-slate-200">Fri</button>
-          <button data-day="6" class="lensBtn snap-center px-3 py-2 rounded-full bg-slate-200">Sat</button>
-          <button data-day="7" class="lensBtn snap-center px-3 py-2 rounded-full bg-slate-200">Sun</button>
-        </div>
-
-        <div class="mt-4 space-y-4">
-          <div class="p-3 bg-slate-50 rounded-xl" id="studyPassageBox">
-            <div class="text-sm text-slate-600" id="studyPassageHeading"></div>
-            <div id="studyPassageText" class="mt-2 leading-relaxed"></div>
-            <div id="compareBox" class="mt-2 border-t pt-2 hidden">
-              <div class="text-sm font-semibold">Compare</div>
-              <div id="compareText" class="text-sm mt-1"></div>
-            </div>
-          </div>
-
-          <!-- Full Chapter Context -->
-          <div class="border rounded-xl overflow-hidden">
-            <button id="contextToggle" class="w-full px-4 py-3 bg-slate-100 hover:bg-slate-200 flex items-center justify-between">
-              <span class="font-semibold">Context (Full Chapter)</span>
-              <span id="contextChevron">▼</span>
-            </button>
-            <div id="contextContent" class="p-4 bg-white hidden">
-              <div id="contextPrimaryText" class="leading-relaxed"></div>
-              <div id="contextCompareBox" class="mt-3 border-t pt-3 hidden">
-                <div class="text-sm font-semibold mb-2">Compare</div>
-                <div id="contextCompareText" class="text-sm leading-relaxed"></div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Memorisation Mode Panel -->
-          <div class="border rounded-xl overflow-hidden">
-            <button id="memorisationToggle" class="w-full px-4 py-3 bg-slate-100 hover:bg-slate-200 flex items-center justify-between">
-              <span class="font-semibold">Memorisation Mode</span>
-              <span id="memorisationChevron">▼</span>
-            </button>
-            <div id="memorisationContent" class="p-4 bg-white hidden">
-              <div class="space-y-3">
-                <div>
-                  <label class="block text-sm font-semibold mb-2">Mode</label>
-                  <div class="flex gap-2">
-                    <button id="modeHide" class="px-3 py-2 rounded-lg bg-indigo-600 text-white text-sm">Hide words</button>
-                    <button id="modeFirstLetters" class="px-3 py-2 rounded-lg bg-slate-200 text-sm">First letters</button>
-                  </div>
-                </div>
-                
-                <div>
-                  <label class="block text-sm font-semibold mb-2">
-                    Difficulty: <span id="difficultyLabel">40%</span>
-                  </label>
-                  <input type="range" id="difficultySlider" min="10" max="90" value="40" class="w-full">
-                </div>
-
-                <div>
-                  <label class="block text-sm font-semibold mb-2">Timer</label>
-                  <div class="flex gap-2">
-                    <button class="timerBtn px-3 py-2 rounded-lg bg-slate-200 text-sm" data-seconds="30">30s</button>
-                    <button class="timerBtn px-3 py-2 rounded-lg bg-slate-200 text-sm" data-seconds="60">60s</button>
-                    <button class="timerBtn px-3 py-2 rounded-lg bg-slate-200 text-sm" data-seconds="90">90s</button>
-                    <button id="timerStop" class="px-3 py-2 rounded-lg bg-red-600 text-white text-sm hidden">Stop</button>
-                  </div>
-                  <div id="timerDisplay" class="mt-2 text-2xl font-bold text-center hidden"></div>
-                </div>
-
-                <div id="memoryStats" class="mt-3 p-3 bg-slate-50 rounded-lg text-sm hidden">
-                  <div class="font-semibold">Your Best</div>
-                  <div id="memoryStatsContent"></div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div class="p-3 bg-slate-50 rounded-xl" id="lensContent">
-            <!-- dynamic prompts / content per day -->
-          </div>
-
-          <!-- Group Questions Box -->
-          <div id="groupQuestionsBox" class="hidden p-4 bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl border border-purple-200">
-            <div class="flex items-center justify-between mb-3">
-              <h3 class="font-semibold text-lg text-purple-900">Group Questions</h3>
-              <button id="copyForTonightBtn" class="px-3 py-2 rounded-lg bg-purple-600 text-white text-sm hover:bg-purple-500 active:scale-[0.98]">
-                Copy for tonight
-              </button>
-            </div>
-            <div class="space-y-4">
-              <div class="p-3 bg-white rounded-lg border border-blue-200">
-                <h4 class="font-semibold text-blue-900 mb-2">👶 Child</h4>
-                <ul id="childQuestions" class="list-disc ml-5 text-sm text-slate-700"></ul>
-              </div>
-              <div class="p-3 bg-white rounded-lg border border-green-200">
-                <h4 class="font-semibold text-green-900 mb-2">🧑 Teen</h4>
-                <ul id="teenQuestions" class="list-disc ml-5 text-sm text-slate-700"></ul>
-              </div>
-              <div class="p-3 bg-white rounded-lg border border-purple-200">
-                <h4 class="font-semibold text-purple-900 mb-2">👨 Adult</h4>
-                <ul id="adultQuestions" class="list-disc ml-5 text-sm text-slate-700"></ul>
-              </div>
-            </div>
-          </div>
-
-          <!-- Theologians & Traditions Panel -->
-          <div class="border rounded-xl overflow-hidden">
-            <button id="theologiansToggle" class="w-full px-4 py-3 bg-slate-100 hover:bg-slate-200 flex items-center justify-between">
-              <span class="font-semibold">Theologians &amp; Traditions</span>
-              <span id="theologiansChevron">▼</span>
-            </button>
-            <div id="theologiansContent" class="p-4 bg-white hidden">
-              <div id="theologiansCards"></div>
-              <div class="mt-4 border-t pt-4">
-                <button id="compareVoicesToggle" class="px-3 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-sm">
-                  Compare voices
-                </button>
-                <div id="compareVoicesContent" class="mt-3 hidden p-3 bg-slate-50 rounded-lg text-sm"></div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Cross-References Panel -->
-          <div id="xrefsPanel" class="border rounded-xl overflow-hidden">
-            <button id="xrefsToggle" class="w-full px-4 py-3 bg-slate-100 hover:bg-slate-200 flex items-center justify-between">
-              <span class="font-semibold">Cross-References</span>
-              <span id="xrefsChevron">▼</span>
-            </button>
-            <div id="xrefsContent" class="p-4 bg-white hidden">
-              <div id="xrefsList"></div>
-            </div>
-          </div>
-          
-          <!-- No Cross-References Message (shown when xrefs not available) -->
-          <div id="noXrefsMessage" class="hidden p-3 bg-slate-50 rounded-lg text-sm text-slate-500">
-            No cross-references yet.
-          </div>
-
-          <div>
-            <label class="block text-sm font-semibold">Your notes</label>
-            <textarea id="studyNotes" class="w-full mt-1 border rounded-lg p-3 h-36" placeholder="Write prayers, observations, connections…"></textarea>
-            <div class="mt-2 text-right">
-              <button id="saveNotesBtn" class="px-3 py-2 rounded-lg bg-slate-900 text-white">Save Notes</button>
-            </div>
-          </div>
-        </div>
+        <!-- Stepper Container -->
+        <div id="studyStepper" class="space-y-3"></div>
       </div>
     </section>
 
@@ -895,54 +749,427 @@
       return vs.map(v=>`<span class="text-slate-500 text-xs align-top mr-1">${v.n}</span>${escapeHtml(v.t)}`).join(' ');
     }
 
+    // Key theological terms for highlighting
+    const KEY_TERMS = [
+      'love', 'faith', 'grace', 'justify', 'justified', 'justification',
+      'Spirit', 'kingdom', 'shepherd', 'covenant', 'righteousness', 'righteous',
+      'holy', 'holiness', 'salvation', 'saved', 'savior', 'saviour',
+      'redemption', 'redeemed', 'redeem', 'forgiveness', 'forgive', 'forgiven',
+      'mercy', 'merciful', 'peace', 'hope', 'believe', 'believed', 'believing',
+      'blessed', 'blessing', 'truth', 'glory', 'glorify', 'glorified',
+      'eternal', 'life', 'death', 'resurrection', 'cross', 'sacrifice',
+      'sanctification', 'sanctify', 'sanctified', 'sin', 'sinned', 'sinners',
+      'repent', 'repentance', 'worship', 'prayer', 'praise'
+    ];
+
+    // Helper to get day name
+    function getDayName(dayNum) {
+      const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+      return days[dayNum - 1] || 'Monday';
+    }
+
     // Study rendering
     async function renderStudy(){
       const ref = thisWeekRef();
       const parsed = parseRef(ref);
-      document.getElementById('studyRef').innerText = ref + ' (' + state.primary + (state.secondary!=='none'? ' + ' + state.secondary : '') + ')';
-
-      const primary = await getPassage(state.primary, parsed.book, parsed.chapter, parsed.v1, parsed.v2);
-      // Use resolved book name in heading
-      document.getElementById('studyPassageHeading').innerText = `${parsed.book} ${parsed.chapter}:${parsed.v1 !== null ? parsed.v1 : 1}${parsed.v2 !== null ? '–' + parsed.v2 : ''} — ${state.primary}`;
-      document.getElementById('studyPassageText').innerHTML = versesToHTML(primary);
-
-      if(state.secondary!=="none"){
-        const sec = await getPassage(state.secondary, parsed.book, parsed.chapter, parsed.v1, parsed.v2);
-        document.getElementById('compareBox').classList.remove('hidden');
-        document.getElementById('compareText').innerHTML = `<div class="text-slate-500 text-xs">${state.secondary}</div>` + versesToHTML(sec);
-      } else {
-        document.getElementById('compareBox').classList.add('hidden');
-        document.getElementById('compareText').innerHTML = '';
-      }
-
-      // Load full chapter context
-      await renderChapterContext(parsed);
-
-      // Day lens content
       const dow = ((new Date().getDay()+6)%7)+1; // Mon=1..Sun=7
-      renderLens(dow, parsed);
-
-      // Load theology commentary
-      await renderTheologians(ref, parsed);
-
-      // Load cross-references
-      await renderCrossReferences(ref, parsed);
-
-      // Load notes
-      const notesKey = `notes:${ref}`;
-      document.getElementById('studyNotes').value = LS.get(notesKey, '');
-      document.getElementById('saveNotesBtn').onclick = () => {
-        LS.set(notesKey, document.getElementById('studyNotes').value);
-        toast('Notes saved');
-      };
-
-      document.getElementById('openInBibleBtn').onclick = () => {
+      
+      // Update header
+      const dayName = getDayName(dow);
+      document.getElementById('studyDayHeading').innerText = `${dayName} Study`;
+      const verseRef = `${parsed.book} ${parsed.chapter}:${parsed.v1 !== null ? parsed.v1 : 1}${parsed.v2 !== null ? '–' + parsed.v2 : ''}`;
+      document.getElementById('studyVerseInfo').innerText = `Verse: ${verseRef} — ${state.primary}`;
+      
+      // Setup "Open full chapter" link
+      document.getElementById('openFullChapterLink').onclick = (e) => {
+        e.preventDefault();
         nav('bible');
         openRef(parsed);
       };
 
-      // Setup memorisation mode
-      setupMemorisationMode();
+      // Load passage data
+      const primary = await getPassage(state.primary, parsed.book, parsed.chapter, parsed.v1, parsed.v2);
+      const secondary = state.secondary !== 'none' ? await getPassage(state.secondary, parsed.book, parsed.chapter, parsed.v1, parsed.v2) : null;
+      
+      // Render stepper
+      await renderStepper(ref, parsed, primary, secondary, dow);
+    }
+
+    // Render the stepper flow
+    async function renderStepper(ref, parsed, primary, secondary, dow) {
+      const stepperEl = document.getElementById('studyStepper');
+      const currentStepKey = `ui:step:${ref}`;
+      let currentStep = LS.get(currentStepKey, 1);
+      
+      // Define steps
+      const steps = [
+        {
+          id: 1,
+          title: 'Read',
+          rationale: 'Absorb the text in its pure form, without commentary.',
+          render: async () => renderReadStep(parsed, primary, secondary)
+        },
+        {
+          id: 2,
+          title: 'Highlight',
+          rationale: 'Spot key theological terms and recurring patterns.',
+          render: async () => renderHighlightStep(parsed, primary)
+        },
+        {
+          id: 3,
+          title: 'Questions',
+          rationale: 'Probe deeper with prompts tailored to today\'s lens.',
+          render: async () => renderQuestionsStep(parsed, dow)
+        },
+        {
+          id: 4,
+          title: 'Views',
+          rationale: 'Learn how theologians have read this passage across centuries.',
+          render: async () => renderViewsStep(ref, parsed)
+        },
+        {
+          id: 5,
+          title: 'Pray & Apply',
+          rationale: 'Turn insight into worship and action.',
+          render: async () => renderPrayApplyStep(ref, parsed, dow)
+        }
+      ];
+
+      // Render all steps
+      let html = '';
+      for (const step of steps) {
+        const isOpen = step.id === currentStep;
+        html += `
+          <div class="border rounded-xl overflow-hidden" data-step="${step.id}">
+            <button class="step-header w-full px-4 py-3 ${isOpen ? 'bg-indigo-100' : 'bg-slate-100'} hover:bg-slate-200 flex items-center justify-between">
+              <div class="flex items-center gap-3">
+                <div class="w-6 h-6 rounded-full ${isOpen ? 'bg-indigo-600 text-white' : 'bg-slate-300 text-slate-700'} flex items-center justify-center text-sm font-semibold">${step.id}</div>
+                <span class="font-semibold">${step.title}</span>
+              </div>
+              <span class="step-chevron">${isOpen ? '▲' : '▼'}</span>
+            </button>
+            <div class="step-content p-4 bg-white ${isOpen ? '' : 'hidden'}">
+              <p class="text-sm text-slate-600 italic mb-4">${step.rationale}</p>
+              <div class="step-body" id="stepBody${step.id}"></div>
+              ${step.id < steps.length ? `<div class="mt-4"><button class="next-step-btn px-4 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-500">Next step →</button></div>` : ''}
+            </div>
+          </div>
+        `;
+      }
+      
+      stepperEl.innerHTML = html;
+
+      // Render current step content
+      await steps[currentStep - 1].render();
+
+      // Setup click handlers
+      const headers = stepperEl.querySelectorAll('.step-header');
+      headers.forEach((header, index) => {
+        header.onclick = () => {
+          const stepId = index + 1;
+          openStep(stepId, steps, ref);
+        };
+      });
+
+      // Setup next step buttons
+      const nextBtns = stepperEl.querySelectorAll('.next-step-btn');
+      nextBtns.forEach((btn, index) => {
+        btn.onclick = () => {
+          const nextStepId = index + 2;
+          openStep(nextStepId, steps, ref);
+        };
+      });
+    }
+
+    // Open a specific step
+    async function openStep(stepId, steps, ref) {
+      const currentStepKey = `ui:step:${ref}`;
+      LS.set(currentStepKey, stepId);
+      
+      // Update UI
+      const stepperEl = document.getElementById('studyStepper');
+      const allSteps = stepperEl.querySelectorAll('[data-step]');
+      
+      allSteps.forEach((stepEl, index) => {
+        const isOpen = index + 1 === stepId;
+        const header = stepEl.querySelector('.step-header');
+        const content = stepEl.querySelector('.step-content');
+        const chevron = stepEl.querySelector('.step-chevron');
+        const numberCircle = stepEl.querySelector('.w-6');
+        
+        if (isOpen) {
+          header.classList.remove('bg-slate-100');
+          header.classList.add('bg-indigo-100');
+          content.classList.remove('hidden');
+          chevron.textContent = '▲';
+          numberCircle.classList.remove('bg-slate-300', 'text-slate-700');
+          numberCircle.classList.add('bg-indigo-600', 'text-white');
+        } else {
+          header.classList.remove('bg-indigo-100');
+          header.classList.add('bg-slate-100');
+          content.classList.add('hidden');
+          chevron.textContent = '▼';
+          numberCircle.classList.remove('bg-indigo-600', 'text-white');
+          numberCircle.classList.add('bg-slate-300', 'text-slate-700');
+        }
+      });
+
+      // Render step content if not already rendered
+      await steps[stepId - 1].render();
+    }
+
+    // Step 1: Read
+    async function renderReadStep(parsed, primary, secondary) {
+      const bodyEl = document.getElementById('stepBody1');
+      let html = `<div class="prose max-w-none">
+        <div class="leading-relaxed text-base">${versesToHTML(primary)}</div>
+      </div>`;
+      
+      if (secondary) {
+        html += `
+          <div class="mt-4 pt-4 border-t">
+            <div class="text-sm font-semibold mb-2 text-slate-700">Compare: ${state.secondary}</div>
+            <div class="leading-relaxed text-sm text-slate-700">${versesToHTML(secondary)}</div>
+          </div>
+        `;
+      }
+      
+      bodyEl.innerHTML = html;
+    }
+
+    // Step 2: Highlight
+    async function renderHighlightStep(parsed, primary) {
+      const bodyEl = document.getElementById('stepBody2');
+      const highlightKey = `ui:highlight:${thisWeekRef()}`;
+      let showHighlights = LS.get(highlightKey, true);
+      
+      // Generate highlighted text
+      const highlightedHTML = primary.map(v => {
+        const words = v.t.split(/(\s+|[.,;:!?—"'()[\]{}])/);
+        const highlighted = words.map(word => {
+          if (!word || /^\s+$/.test(word) || /^[.,;:!?—"'()[\]{}]+$/.test(word)) {
+            return word;
+          }
+          
+          // Check if word is a key term (case-insensitive)
+          const lowerWord = word.toLowerCase().replace(/[.,;:!?—"'()[\]{}]/g, '');
+          if (KEY_TERMS.includes(lowerWord)) {
+            return `<mark class="bg-yellow-200 font-semibold">${escapeHtml(word)}</mark>`;
+          }
+          
+          return escapeHtml(word);
+        }).join('');
+        
+        return `<span class="text-slate-500 text-xs align-top mr-1">${v.n}</span>${highlighted}`;
+      }).join(' ');
+      
+      let html = `
+        <div class="mb-3">
+          <label class="flex items-center gap-2 cursor-pointer">
+            <input type="checkbox" id="highlightToggle" ${showHighlights ? 'checked' : ''} class="w-4 h-4 rounded">
+            <span class="text-sm">Show highlights</span>
+          </label>
+        </div>
+        <div id="highlightedText" class="prose max-w-none leading-relaxed ${showHighlights ? '' : 'hidden'}">
+          ${highlightedHTML}
+        </div>
+        <div id="plainText" class="prose max-w-none leading-relaxed ${showHighlights ? 'hidden' : ''}">
+          ${versesToHTML(primary)}
+        </div>
+        <div class="mt-4 p-3 bg-slate-50 rounded-lg text-sm">
+          <div class="font-semibold mb-1">Highlighted terms:</div>
+          <div class="text-slate-600">Key theological words like "faith," "grace," "love," "Spirit," etc.</div>
+        </div>
+      `;
+      
+      bodyEl.innerHTML = html;
+      
+      // Setup toggle handler
+      const toggle = document.getElementById('highlightToggle');
+      if (toggle) {
+        toggle.onchange = () => {
+          showHighlights = toggle.checked;
+          LS.set(highlightKey, showHighlights);
+          document.getElementById('highlightedText').classList.toggle('hidden', !showHighlights);
+          document.getElementById('plainText').classList.toggle('hidden', showHighlights);
+        };
+      }
+    }
+
+    // Step 3: Questions
+    async function renderQuestionsStep(parsed, dow) {
+      const bodyEl = document.getElementById('stepBody3');
+      const prompts = quickPrompts(dow, parsed);
+      
+      let html = `
+        <div class="space-y-3">
+          ${prompts.map((prompt, i) => `
+            <div class="p-3 bg-slate-50 rounded-lg">
+              <div class="font-semibold text-sm mb-1">${i + 1}. ${prompt}</div>
+            </div>
+          `).join('')}
+        </div>
+      `;
+      
+      bodyEl.innerHTML = html;
+    }
+
+    // Step 4: Views
+    async function renderViewsStep(ref, parsed) {
+      const bodyEl = document.getElementById('stepBody4');
+      
+      // Load commentary data
+      try {
+        const response = await fetch('theology/commentary.json');
+        if (!response.ok) throw new Error('File not found');
+        const allCommentary = await response.json();
+        
+        // Filter matching entries
+        const matches = allCommentary.filter(entry => matchesRef(entry.ref, ref, parsed));
+        
+        if (matches.length === 0) {
+          bodyEl.innerHTML = '<p class="text-sm text-slate-500">No commentary yet for this passage.</p>';
+          return;
+        }
+
+        // Separate into "widely agreed" and "debated" based on takeaways
+        const agreed = [];
+        const debated = [];
+        
+        matches.forEach(entry => {
+          // Simple heuristic: if multiple theologians mention similar themes, it's agreed
+          // For now, we'll show all as agreed points with citations
+          if (entry.takeaways && entry.takeaways.length > 0) {
+            entry.takeaways.forEach(takeaway => {
+              agreed.push({
+                point: takeaway,
+                source: `${entry.theologian} (${entry.tradition})`
+              });
+            });
+          }
+        });
+
+        let html = '';
+        
+        if (agreed.length > 0) {
+          html += `
+            <div class="mb-4">
+              <h4 class="font-semibold text-sm mb-2">Widely agreed:</h4>
+              <ul class="list-disc ml-5 text-sm space-y-1">
+                ${agreed.map(item => `<li>${escapeHtml(item.point)} <span class="text-xs text-slate-500">(${escapeHtml(item.source)})</span></li>`).join('')}
+              </ul>
+            </div>
+          `;
+        }
+        
+        // Show full citations
+        html += `
+          <div class="mt-4 pt-4 border-t">
+            <h4 class="font-semibold text-sm mb-2">Citations:</h4>
+            <div class="space-y-2">
+              ${matches.map(entry => `
+                <div class="text-xs">
+                  <a href="${escapeHtml(entry.url)}" target="_blank" rel="noopener noreferrer" class="text-indigo-600 hover:underline">
+                    ${escapeHtml(entry.citation)}
+                  </a>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        `;
+        
+        bodyEl.innerHTML = html;
+      } catch (err) {
+        bodyEl.innerHTML = '<p class="text-sm text-slate-500">No commentary yet for this passage.</p>';
+      }
+    }
+
+    // Step 5: Pray & Apply
+    async function renderPrayApplyStep(ref, parsed, dow) {
+      const bodyEl = document.getElementById('stepBody5');
+      
+      // Get lens-specific prayer and action
+      const lensInfo = getLensInfo(dow, parsed);
+      
+      let html = `
+        <div class="space-y-4">
+          <div class="p-4 bg-blue-50 rounded-lg border-l-4 border-blue-400">
+            <div class="text-sm font-semibold mb-2">Prayer:</div>
+            <div class="text-sm italic">${lensInfo.prayer}</div>
+          </div>
+          <div class="p-4 bg-green-50 rounded-lg border-l-4 border-green-400">
+            <div class="text-sm font-semibold mb-2">This week's action:</div>
+            <div class="text-sm">${lensInfo.action}</div>
+          </div>
+        </div>
+      `;
+
+      // Add notes section
+      html += `
+        <div class="mt-6 pt-6 border-t">
+          <div class="mb-2">
+            <label class="block text-sm font-semibold">My notes</label>
+            <p class="text-xs text-slate-600">Record prayers, observations, connections…</p>
+          </div>
+          <textarea id="studyNotes" class="w-full mt-2 border rounded-lg p-3 h-36" placeholder="Write your thoughts here…"></textarea>
+          <div class="mt-2 text-right">
+            <button id="saveNotesBtn" class="px-4 py-2 rounded-lg bg-slate-900 text-white hover:bg-slate-800">Save Notes</button>
+          </div>
+        </div>
+      `;
+      
+      bodyEl.innerHTML = html;
+      
+      // Load and setup notes
+      const notesKey = `notes:${ref}`;
+      const notesEl = document.getElementById('studyNotes');
+      const saveBtn = document.getElementById('saveNotesBtn');
+      
+      if (notesEl && saveBtn) {
+        notesEl.value = LS.get(notesKey, '');
+        saveBtn.onclick = () => {
+          LS.set(notesKey, notesEl.value);
+          toast('Notes saved');
+        };
+      }
+    }
+
+    // Helper to get lens-specific prayer and action
+    function getLensInfo(dow, parsed) {
+      const refStr = `${parsed.book} ${parsed.chapter}:${parsed.v1 !== null ? parsed.v1 : 1}${parsed.v2 !== null ? '–' + parsed.v2 : ''}`;
+      
+      const lenses = {
+        1: { // Monday - Context
+          prayer: 'Lord, help me see how this verse fits into Your grand story.',
+          action: 'Read the full chapter once this week to understand the context.'
+        },
+        2: { // Tuesday - Translation
+          prayer: 'Thank You for preserving Your Word across languages and centuries.',
+          action: 'Share one insight from translation comparison with a friend.'
+        },
+        3: { // Wednesday - Word Study
+          prayer: 'Holy Spirit, illuminate the meaning of Your words to me.',
+          action: 'Write one key term from this passage on a card and meditate on it.'
+        },
+        4: { // Thursday - Theologians
+          prayer: 'Father, I thank You for the cloud of witnesses who studied this text.',
+          action: 'Pick one theologian\'s insight and journal how it challenges you.'
+        },
+        5: { // Friday - Cross-References
+          prayer: 'Show me how all Scripture points to Jesus.',
+          action: 'Memorize one cross-reference that deepens your understanding.'
+        },
+        6: { // Saturday - Meditation
+          prayer: 'Speak to my heart through this passage, Lord.',
+          action: 'Spend 5 minutes in silent reflection on this verse tomorrow.'
+        },
+        7: { // Sunday - Application
+          prayer: `God, make ${refStr} alive in my daily walk.`,
+          action: 'Choose one specific way to live out this verse this week.'
+        }
+      };
+      
+      return lenses[dow] || lenses[1];
     }
 
     // Render full chapter context
