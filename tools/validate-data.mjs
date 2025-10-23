@@ -29,7 +29,14 @@ async function validateBibleFiles() {
   console.log('Validating Bible JSON files...');
   
   const biblesDir = 'bibles';
-  const translations = await readdir(biblesDir);
+  let translations;
+  
+  try {
+    translations = await readdir(biblesDir);
+  } catch (err) {
+    warnings.push('bibles directory not found');
+    return;
+  }
   
   for (const translation of translations) {
     const translationPath = join(biblesDir, translation);
