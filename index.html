@@ -710,54 +710,46 @@
       return transformed;
     }
 
-    // Load and cache full Bible JSON
-    async function loadBibleJSON(version) {
-      // Return cached if already loaded
-      if (loadedBibles[version]) {
-        return loadedBibles[version];
-      }
-
-      // Try to load from root JSON file
-      const filename = version.toLowerCase() + '.json';
-      try {
-        const response = await fetch(filename);
-        if (response.ok) {
-          const data = await response.json();
-          const transformed = transformBibleData(data);
-          loadedBibles[version] = transformed;
-          return transformed;
+    // Load passage and return verses with verse numbers
+    async function loadPassage(version, book, chapter, v1, v2) {
+      // Fetch and cache the version file if not already loaded
+      if (!loadedBibles[version]) {
+        const filename = version.toLowerCase() + '.json';
+        try {
+          const response = await fetch(filename);
+          if (response.ok) {
+            const data = await response.json();
+            const transformed = transformBibleData(data);
+            loadedBibles[version] = transformed;
+          } else {
+            loadedBibles[version] = {};
+          }
+        } catch (err) {
+          console.warn(`Failed to load ${filename}:`, err);
+          loadedBibles[version] = {};
         }
-      } catch (err) {
-        console.warn(`Failed to load ${filename}:`, err);
       }
 
-      // Return empty object if not found
-      loadedBibles[version] = {};
-      return {};
-    }
-
-    // Load passage and return verses
-    async function loadPassage(version, book, chapter) {
-      // First try loading from full Bible JSON
-      const bibleData = await loadBibleJSON(version);
-      if (bibleData[book] && bibleData[book][String(chapter)]) {
-        return bibleData[book][String(chapter)];
+      // Access verses from the cached Bible data
+      const verses = loadedBibles[version]?.[book]?.[String(chapter)];
+      
+      // If book or chapter doesn't exist, return error message
+      if (!verses || verses.length === 0) {
+        return [{
+          n: 0,
+          t: `[${version}] ${book} ${chapter}:${v1 || 1}${v2 ? '-' + v2 : ''} not found.`
+        }];
       }
 
-      // Fallback to /bibles/{version}/{book}.json
-      const path = `bibles/${version}/${book}.json`;
-      try {
-        const r = await fetch(path);
-        if(r.ok){
-          const data = await r.json();
-          const verses = data[String(chapter)] || [];
-          if(verses.length) return verses;
-        }
-      } catch {}
-
-      // Final fallback to sample
-      const src = SAMPLE[version]?.[book]?.[String(chapter)] || [];
-      return src;
+      // Slice verses for v1-v2 if provided
+      const startIndex = v1 ? v1 - 1 : 0;
+      const endIndex = v2 ? v2 - 1 : verses.length - 1;
+      
+      // Return verses in {n, t} format
+      return verses.slice(startIndex, endIndex + 1).map((text, index) => ({
+        n: startIndex + index + 1,
+        t: text
+      }));
     }
 
     // Get verse count for a chapter (with caching)
@@ -766,7 +758,10 @@
       const cached = LS.get(cacheKey, null);
       if (cached !== null) return cached;
       
-      const verses = await loadPassage(version, book, chapter);
+      const verses = await loadPassage(version, book, chapter, null, null);
+      // Check if it's an error message
+      if (verses.length === 1 && verses[0].n === 0) return 0;
+      
       const count = verses.length;
       LS.set(cacheKey, count);
       return count;
@@ -779,15 +774,9 @@
       return Math.max(1, Math.round(count / 2));
     }
 
-    // Load verses (tries fetch from /bibles/{ver}/{Book}.json, else sample)
+    // Load verses from the full Bible JSON files
     async function getPassage(version, book, chapter, v1, v2){
-      const verses = await loadPassage(version, book, chapter);
-      if(verses.length === 0) {
-        return [{n:0, t:`[${version}] ${book} ${chapter}:${v1||1}${v2?'-'+v2:''} not available in demo. Add /bibles/${version}/${book}.json to your repo.`}];
-      }
-      const s = v1 ? v1-1 : 0;
-      const e = v2 ? v2-1 : verses.length-1;
-      return verses.slice(s, e+1).map((t,i)=>({ n:(s+i+1), t }));
+      return await loadPassage(version, book, chapter, v1, v2);
     }
 
     function versesToHTML(vs){
