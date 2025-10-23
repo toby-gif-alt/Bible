@@ -171,6 +171,21 @@
             </div>
           </div>
 
+          <!-- Full Chapter Context -->
+          <div class="border rounded-xl overflow-hidden">
+            <button id="contextToggle" class="w-full px-4 py-3 bg-slate-100 hover:bg-slate-200 flex items-center justify-between">
+              <span class="font-semibold">Context (Full Chapter)</span>
+              <span id="contextChevron">▼</span>
+            </button>
+            <div id="contextContent" class="p-4 bg-white hidden">
+              <div id="contextPrimaryText" class="leading-relaxed"></div>
+              <div id="contextCompareBox" class="mt-3 border-t pt-3 hidden">
+                <div class="text-sm font-semibold mb-2">Compare</div>
+                <div id="contextCompareText" class="text-sm leading-relaxed"></div>
+              </div>
+            </div>
+          </div>
+
           <!-- Memorisation Mode Panel -->
           <div class="border rounded-xl overflow-hidden">
             <button id="memorisationToggle" class="w-full px-4 py-3 bg-slate-100 hover:bg-slate-200 flex items-center justify-between">
@@ -449,18 +464,92 @@
         ]}}
     };
 
-// Weekly "big verses" — start with the core 10 verses (NT first), then additional verses
+// Chapter counts for all 66 books (KJV/WEB canonical order)
+    const CHAPTER_COUNTS = {
+      // Old Testament
+      "Genesis": 50, "Exodus": 40, "Leviticus": 27, "Numbers": 36, "Deuteronomy": 34,
+      "Joshua": 24, "Judges": 21, "Ruth": 4, "1 Samuel": 31, "2 Samuel": 24,
+      "1 Kings": 22, "2 Kings": 25, "1 Chronicles": 29, "2 Chronicles": 36,
+      "Ezra": 10, "Nehemiah": 13, "Esther": 10, "Job": 42, "Psalms": 150,
+      "Proverbs": 31, "Ecclesiastes": 12, "Song of Solomon": 8,
+      "Isaiah": 66, "Jeremiah": 52, "Lamentations": 5, "Ezekiel": 48, "Daniel": 12,
+      "Hosea": 14, "Joel": 3, "Amos": 9, "Obadiah": 1, "Jonah": 4,
+      "Micah": 7, "Nahum": 3, "Habakkuk": 3, "Zephaniah": 3, "Haggai": 2,
+      "Zechariah": 14, "Malachi": 4,
+      // New Testament
+      "Matthew": 28, "Mark": 16, "Luke": 24, "John": 21, "Acts": 28,
+      "Romans": 16, "1 Corinthians": 16, "2 Corinthians": 13, "Galatians": 6,
+      "Ephesians": 6, "Philippians": 4, "Colossians": 4,
+      "1 Thessalonians": 5, "2 Thessalonians": 3, "1 Timothy": 6, "2 Timothy": 4,
+      "Titus": 3, "Philemon": 1, "Hebrews": 13, "James": 5,
+      "1 Peter": 5, "2 Peter": 3, "1 John": 5, "2 John": 1, "3 John": 1,
+      "Jude": 1, "Revelation": 22
+    };
+
+    // Weekly "big verses" — curated list of 60+ foundational verses (NT first)
     const BIG_VERSES = [
+      // Core NT Gospel verses
       "John 1:1",
       "John 3:16",
+      "John 14:6",
       "Matthew 28:18-20",
+      "Romans 3:23",
       "Romans 5:8",
-      "Romans 8:28-30",
+      "Romans 6:23",
+      "Romans 8:1",
+      "Romans 8:28",
+      "Romans 10:9",
+      "Romans 12:1-2",
       "1 Corinthians 13:4-7",
+      "1 Corinthians 15:3-4",
+      "2 Corinthians 5:17",
+      "Galatians 2:20",
+      "Galatians 5:22-23",
       "Ephesians 2:8-10",
       "Philippians 2:5-11",
-      "Psalms 23:1-6",
-      "Isaiah 53:4-6"
+      "Philippians 4:6-7",
+      "Philippians 4:13",
+      "Colossians 3:1-2",
+      "1 Thessalonians 5:16-18",
+      "2 Timothy 3:16-17",
+      "Hebrews 4:12",
+      "Hebrews 11:1",
+      "Hebrews 13:8",
+      "James 1:2-5",
+      "James 2:17",
+      "1 Peter 1:3-5",
+      "1 Peter 2:9",
+      "1 Peter 3:15",
+      "1 Peter 5:7",
+      "1 John 1:8-9",
+      "1 John 4:7-8",
+      "Revelation 21:1-5",
+      // Key OT verses
+      "Genesis 1:1",
+      "Genesis 1:27",
+      "Exodus 20:3",
+      "Deuteronomy 6:4-5",
+      "Joshua 1:8-9",
+      "1 Samuel 16:7",
+      "Psalm 1:1-3",
+      "Psalm 23:1-6",
+      "Psalm 46:1",
+      "Psalm 51:10",
+      "Psalm 91:1-2",
+      "Psalm 103:12",
+      "Psalm 119:105",
+      "Psalm 139:14",
+      "Proverbs 3:5-6",
+      "Proverbs 16:3",
+      "Proverbs 22:6",
+      "Ecclesiastes 3:1",
+      "Isaiah 40:31",
+      "Isaiah 41:10",
+      "Isaiah 53:4-6",
+      "Isaiah 55:8-9",
+      "Jeremiah 29:11",
+      "Jeremiah 31:3",
+      "Micah 6:8"
     ];
 
     // Local storage helpers
@@ -469,13 +558,61 @@
       set(k, v){ localStorage.setItem(k, JSON.stringify(v)) }
     };
 
-    // State
-    let state = LS.get('state', {
-      primary: 'WEB',
-      secondary: 'none',
-      startDate: '2025-01-06', // Monday week 1 anchor; change as desired
-      groupMode: false,
-    });
+    // State - initialize with today's date if startDate is missing
+    let state = LS.get('state', {});
+    if (!state.startDate) {
+      const today = new Date();
+      state.startDate = today.toISOString().split('T')[0]; // YYYY-MM-DD format
+    }
+    state.primary = state.primary || 'WEB';
+    state.secondary = state.secondary || 'none';
+    state.groupMode = state.groupMode || false;
+    LS.set('state', state);
+
+    // Generate COVERAGE queue (one verse per chapter for complete Bible)
+    let COVERAGE = [];
+    function generateCoverage() {
+      const coverage = [];
+      const allBooks = [...BOOKS.NT, ...BOOKS.OT]; // NT first, then OT
+      
+      for (const book of allBooks) {
+        const chapterCount = CHAPTER_COUNTS[book];
+        if (!chapterCount) continue;
+        
+        for (let chapter = 1; chapter <= chapterCount; chapter++) {
+          // Default to verse 1; will compute middle verse on demand
+          coverage.push(`${book} ${chapter}:1`);
+        }
+      }
+      return coverage;
+    }
+    COVERAGE = generateCoverage();
+
+    // Build complete PLAN: BIG_VERSES followed by COVERAGE (excluding duplicates)
+    let PLAN = [];
+    function buildPlan() {
+      const plan = [...BIG_VERSES];
+      const seen = new Set(BIG_VERSES.map(ref => normalizeRef(ref)));
+      
+      for (const ref of COVERAGE) {
+        const normalized = normalizeRef(ref);
+        if (!seen.has(normalized)) {
+          plan.push(ref);
+          seen.add(normalized);
+        }
+      }
+      return plan;
+    }
+    
+    // Normalize ref for comparison (handle ranges vs single verses)
+    function normalizeRef(ref) {
+      const parsed = parseRef(ref);
+      if (!parsed) return ref;
+      // For comparison, use book:chapter format to detect duplicates
+      return `${parsed.book} ${parsed.chapter}`;
+    }
+    
+    PLAN = buildPlan();
 
     // Basic navigation
     function nav(id){
@@ -510,10 +647,10 @@
       const start = new Date(state.startDate + 'T00:00:00');
       const now = new Date();
       const diff = Math.floor((now - start) / (1000*60*60*24*7));
-      return ((diff % BIG_VERSES.length) + BIG_VERSES.length) % BIG_VERSES.length;
+      return Math.max(0, diff); // Never negative
     }
 
-    function thisWeekRef(){ return BIG_VERSES[weekIndex()] }
+    function thisWeekRef(){ return PLAN[weekIndex() % PLAN.length] }
 
     // Render home card
     function renderHome(){
@@ -527,8 +664,8 @@
       return { book: m[1], chapter: m[2], v1: m[3] ? +m[3] : 1, v2: m[4] ? +m[4] : (m[3]?+m[3]:null) };
     }
 
-    // Load verses (tries fetch from /bibles/{ver}/{Book}.json, else sample)
-    async function getPassage(version, book, chapter, v1, v2){
+    // Load passage and return verses
+    async function loadPassage(version, book, chapter) {
       const path = `bibles/${version}/${book}.json`;
       try {
         const r = await fetch(path);
@@ -536,18 +673,42 @@
           const data = await r.json();
           const verses = data[String(chapter)] || [];
           if(!verses.length) throw new Error('No chapter');
-          const s = v1 ? v1-1 : 0;
-          const e = v2 ? v2-1 : verses.length-1;
-          return verses.slice(s, e+1).map((t,i)=>({ n:(s+i+1), t }));
+          return verses;
         }
       } catch {}
       // Fallback to sample
       const src = SAMPLE[version]?.[book]?.[String(chapter)] || [];
+      return src;
+    }
+
+    // Get verse count for a chapter (with caching)
+    async function getVerseCount(version, book, chapter) {
+      const cacheKey = `versesCount:${book}:${chapter}`;
+      const cached = LS.get(cacheKey, null);
+      if (cached !== null) return cached;
+      
+      const verses = await loadPassage(version, book, chapter);
+      const count = verses.length;
+      LS.set(cacheKey, count);
+      return count;
+    }
+
+    // Compute middle verse for a chapter
+    async function getMiddleVerse(version, book, chapter) {
+      const count = await getVerseCount(version, book, chapter);
+      if (count === 0) return 1;
+      return Math.max(1, Math.round(count / 2));
+    }
+
+    // Load verses (tries fetch from /bibles/{ver}/{Book}.json, else sample)
+    async function getPassage(version, book, chapter, v1, v2){
+      const verses = await loadPassage(version, book, chapter);
+      if(verses.length === 0) {
+        return [{n:0, t:`[${version}] ${book} ${chapter}:${v1||1}${v2?'-'+v2:''} not available in demo. Add /bibles/${version}/${book}.json to your repo.`}];
+      }
       const s = v1 ? v1-1 : 0;
-      const e = v2 ? v2-1 : src.length-1;
-      const arr = src.slice(s, e+1).map((t,i)=>({ n:(s+i+1), t }));
-      if(arr.length===0) return [{n:0, t:`[${version}] ${book} ${chapter}:${v1||1}${v2?'-'+v2:''} not available in demo. Add /bibles/${version}/${book}.json to your repo.`}];
-      return arr;
+      const e = v2 ? v2-1 : verses.length-1;
+      return verses.slice(s, e+1).map((t,i)=>({ n:(s+i+1), t }));
     }
 
     function versesToHTML(vs){
@@ -572,6 +733,9 @@
         document.getElementById('compareBox').classList.add('hidden');
         document.getElementById('compareText').innerHTML = '';
       }
+
+      // Load full chapter context
+      await renderChapterContext(parsed);
 
       // Day lens content
       const dow = ((new Date().getDay()+6)%7)+1; // Mon=1..Sun=7
@@ -598,6 +762,34 @@
 
       // Setup memorisation mode
       setupMemorisationMode();
+    }
+
+    // Render full chapter context
+    async function renderChapterContext(parsed) {
+      const toggleBtn = document.getElementById('contextToggle');
+      const contentEl = document.getElementById('contextContent');
+      const chevron = document.getElementById('contextChevron');
+      
+      // Setup toggle handler
+      toggleBtn.onclick = () => {
+        const isHidden = contentEl.classList.contains('hidden');
+        contentEl.classList.toggle('hidden');
+        chevron.textContent = isHidden ? '▲' : '▼';
+      };
+
+      // Load full chapter in primary version
+      const primaryChapter = await getPassage(state.primary, parsed.book, parsed.chapter, null, null);
+      document.getElementById('contextPrimaryText').innerHTML = versesToHTML(primaryChapter);
+
+      // Load full chapter in secondary version if set
+      if(state.secondary !== 'none') {
+        const secondaryChapter = await getPassage(state.secondary, parsed.book, parsed.chapter, null, null);
+        document.getElementById('contextCompareBox').classList.remove('hidden');
+        document.getElementById('contextCompareText').innerHTML = versesToHTML(secondaryChapter);
+      } else {
+        document.getElementById('contextCompareBox').classList.add('hidden');
+        document.getElementById('contextCompareText').innerHTML = '';
+      }
     }
 
     function renderLens(day, parsed){
@@ -1177,7 +1369,7 @@
       const secVs = state.secondary!=='none' ? await getPassage(state.secondary, book, chapter, null, null) : null;
       const pairs = vs.map((v,i)=>({ n:v.n, a:v.t, b: secVs? (secVs[i]?.t||'') : null }));
       versesEl.innerHTML = pairs.map(p=>`
-        <div class="p-3 rounded-xl bg-slate-50">
+        <div class="p-3 rounded-xl bg-slate-50" id="verse-${p.n}">
           <div class="text-slate-500 text-xs">${book} ${chapter}:${p.n}</div>
           <div class="mt-1">${escapeHtml(p.a)}</div>
           ${p.b!==null ? `<div class="mt-2 text-sm border-t pt-2"><span class="text-slate-500 text-xs">${state.secondary}</span><br>${escapeHtml(p.b)}</div>`:''}
@@ -1186,14 +1378,20 @@
     }
 
     function openRef(parsed){
-      // Open navigator to book/chapter and scroll to first verse
+      // Open navigator to book/chapter and scroll to the focus verse
       const which = BOOKS.NT.includes(parsed.book) ? 'NT' : 'OT';
       showBooks(which);
       showChapters(parsed.book);
       showChapter(parsed.book, Number(parsed.chapter));
       setTimeout(()=> {
-        const target = document.querySelector(`#verses .p-3`);
-        if(target) target.scrollIntoView({behavior:'smooth', block:'start'});
+        const verseId = `verse-${parsed.v1 || 1}`;
+        const target = document.getElementById(verseId);
+        if(target) {
+          target.scrollIntoView({behavior:'smooth', block:'center'});
+          // Briefly highlight the verse
+          target.classList.add('ring-2', 'ring-indigo-400');
+          setTimeout(() => target.classList.remove('ring-2', 'ring-indigo-400'), 2000);
+        }
       }, 300);
     }
 
@@ -1269,8 +1467,12 @@
     function setBlessing(){
       const r = blessings[Math.floor(Math.random()*blessings.length)];
       const p = parseRef(r);
+      if (!p) return;
       getPassage('KJV', p.book, p.chapter, p.v1, p.v2).then(vs => {
         document.getElementById('randomBlessing').innerHTML = `“${escapeHtml(vs.map(x=>x.t).join(' '))}” — ${r}`;
+      
+      }).catch(() => {
+        document.getElementById("randomBlessing").innerHTML = `"Your word is a lamp unto my feet, and a light unto my path." — Psalm 119:105`;
       });
     }
 
