@@ -1078,6 +1078,135 @@
       bodyEl.innerHTML = html;
     }
 
+    // Helper: Extract claims from a commentary entry (summaries, excerpts, takeaways)
+    function extractClaims(entry) {
+      const claims = [];
+      
+      // Add takeaways as individual claims (these are the primary claims)
+      if (entry.takeaways && entry.takeaways.length > 0) {
+        entry.takeaways.forEach(takeaway => {
+          claims.push({
+            text: takeaway.trim(),
+            source: entry.theologian,
+            tradition: entry.tradition,
+            century: entry.century,
+            entry: entry,
+            isPrimary: true
+          });
+        });
+      }
+      
+      // Also add summary as a secondary claim
+      if (entry.summary && claims.length === 0) {
+        claims.push({
+          text: entry.summary.trim(),
+          source: entry.theologian,
+          tradition: entry.tradition,
+          century: entry.century,
+          entry: entry,
+          isPrimary: false
+        });
+      }
+      
+      return claims;
+    }
+
+    // Helper: Calculate similarity between two claim texts (simple word overlap)
+    function claimSimilarity(claim1, claim2) {
+      const words1 = claim1.toLowerCase().split(/\W+/).filter(w => w.length > 2);
+      const words2 = claim2.toLowerCase().split(/\W+/).filter(w => w.length > 2);
+      
+      if (words1.length === 0 || words2.length === 0) return 0;
+      
+      const set1 = new Set(words1);
+      const set2 = new Set(words2);
+      const intersection = new Set([...set1].filter(w => set2.has(w)));
+      
+      // Jaccard similarity
+      const union = new Set([...set1, ...set2]);
+      return intersection.size / union.size;
+    }
+
+    // Helper: Group similar claims together
+    function groupSimilarClaims(claims, threshold = 0.25) {
+      const groups = [];
+      const used = new Set();
+      
+      claims.forEach((claim, i) => {
+        if (used.has(i)) return;
+        
+        const group = {
+          claims: [claim],
+          text: claim.text,
+          sources: [claim.source],
+          traditions: [claim.tradition]
+        };
+        used.add(i);
+        
+        // Find similar claims
+        claims.forEach((otherClaim, j) => {
+          if (i !== j && !used.has(j)) {
+            const similarity = claimSimilarity(claim.text, otherClaim.text);
+            if (similarity >= threshold) {
+              group.claims.push(otherClaim);
+              if (!group.sources.includes(otherClaim.source)) {
+                group.sources.push(otherClaim.source);
+              }
+              if (!group.traditions.includes(otherClaim.tradition)) {
+                group.traditions.push(otherClaim.tradition);
+              }
+              used.add(j);
+            }
+          }
+        });
+        
+        groups.push(group);
+      });
+      
+      return groups;
+    }
+
+    // Helper: Detect if claims are conflicting (different emphases/interpretations)
+    function detectConflicts(groups) {
+      const conflicts = [];
+      
+      // Look for groups that mention opposing concepts
+      const opposingKeywords = [
+        ['faith', 'works'],
+        ['grace', 'law'],
+        ['individual', 'corporate'],
+        ['already', 'not yet'],
+        ['divine', 'human'],
+        ['sovereignty', 'free will'],
+        ['predestination', 'choice']
+      ];
+      
+      groups.forEach(group => {
+        const text = group.text.toLowerCase();
+        
+        // Check if this group emphasizes one side of a theological tension
+        opposingKeywords.forEach(([keyword1, keyword2]) => {
+          if (text.includes(keyword1) && !text.includes(keyword2)) {
+            // Look for another group emphasizing the opposite
+            const opposingGroup = groups.find(g => 
+              g !== group && 
+              g.text.toLowerCase().includes(keyword2) && 
+              !g.text.toLowerCase().includes(keyword1)
+            );
+            
+            if (opposingGroup && !conflicts.some(c => c.groups.includes(group) || c.groups.includes(opposingGroup))) {
+              conflicts.push({
+                groups: [group, opposingGroup],
+                theme: `${keyword1} vs ${keyword2}`
+              });
+            }
+          }
+        });
+      });
+      
+      return conflicts;
+    }
+
     // Step 4: Views
     async function renderViewsStep(ref, parsed) {
       const bodyEl = document.getElementById('stepBody4');
@@ -1096,48 +1225,132 @@
           return;
         }
 
-        // Separate into "widely agreed" and "debated" based on takeaways
-        const agreed = [];
-        const debated = [];
-        
+        // Extract all claims from entries
+        const allClaims = [];
         matches.forEach(entry => {
-          // Simple heuristic: if multiple theologians mention similar themes, it's agreed
-          // For now, we'll show all as agreed points with citations
-          if (entry.takeaways && entry.takeaways.length > 0) {
-            entry.takeaways.forEach(takeaway => {
-              agreed.push({
-                point: takeaway,
-                source: `${entry.theologian} (${entry.tradition})`
-              });
-            });
-          }
+          const claims = extractClaims(entry);
+          allClaims.push(...claims);
         });
+
+        // Group similar claims
+        const claimGroups = groupSimilarClaims(allClaims);
+        
+        // Sort by number of sources (most agreed first), then by number of traditions
+        claimGroups.sort((a, b) => {
+          if (b.sources.length !== a.sources.length) {
+            return b.sources.length - a.sources.length;
+          }
+          return b.traditions.length - a.traditions.length;
+        });
+
+        // Calculate consensus threshold (60% of unique theologians)
+        const uniqueTheologians = new Set(matches.map(e => e.theologian)).size;
+        const consensusThreshold = Math.max(2, Math.ceil(uniqueTheologians * 0.6));
+
+        // Separate widely agreed vs other claims
+        const widelyAgreed = claimGroups
+          .filter(group => group.sources.length >= consensusThreshold)
+          .slice(0, 4); // Max 4
+
+        // Detect conflicts among remaining claims or use remaining groups
+        const remainingGroups = claimGroups.filter(group => group.sources.length < consensusThreshold);
+        const conflicts = detectConflicts(remainingGroups);
+        
+        // If we have fewer than 2 entries total, skip debated section per guardrails
+        const showDebated = matches.length >= 2 && remainingGroups.length > 0;
 
         let html = '';
         
-        if (agreed.length > 0) {
+        // Render "Widely agreed" section
+        if (widelyAgreed.length > 0) {
           html += `
             <div class="mb-4">
-              <h4 class="font-semibold text-sm mb-2">Widely agreed:</h4>
+              <h4 class="font-semibold text-sm mb-2">Widely agreed</h4>
               <ul class="list-disc ml-5 text-sm space-y-1">
-                ${agreed.map(item => `<li>${escapeHtml(item.point)} <span class="text-xs text-slate-500">(${escapeHtml(item.source)})</span></li>`).join('')}
+                ${widelyAgreed.map(group => {
+                  return `<li>${escapeHtml(group.text)}</li>`;
+                }).join('')}
               </ul>
             </div>
           `;
         }
         
-        // Show full citations
+        // Render "Debated viewpoints" section
+        if (showDebated) {
+          const debatedItems = [];
+          
+          // Add explicit conflicts
+          conflicts.forEach(conflict => {
+            conflict.groups.forEach(group => {
+              if (debatedItems.length < 4) {
+                debatedItems.push({
+                  text: group.text,
+                  sources: group.sources
+                });
+              }
+            });
+          });
+          
+          // Add other diverse viewpoints if we have space
+          remainingGroups.forEach(group => {
+            if (debatedItems.length < 4 && !debatedItems.some(item => item.text === group.text)) {
+              debatedItems.push({
+                text: group.text,
+                sources: group.sources
+              });
+            }
+          });
+          
+          if (debatedItems.length > 0) {
+            html += `
+              <div class="mb-4">
+                <h4 class="font-semibold text-sm mb-2">Debated viewpoints</h4>
+                <ul class="list-disc ml-5 text-sm space-y-1">
+                  ${debatedItems.map(item => {
+                    const sourceList = item.sources.length > 2 
+                      ? `${item.sources.slice(0, 2).join(', ')}, +${item.sources.length - 2} more`
+                      : item.sources.join(', ');
+                    return `<li>${escapeHtml(item.text)} <span class="text-xs text-slate-500">(${escapeHtml(sourceList)})</span></li>`;
+                  }).join('')}
+                </ul>
+              </div>
+            `;
+          }
+        }
+        
+        // Render theologian cards
         html += `
           <div class="mt-4 pt-4 border-t">
-            <h4 class="font-semibold text-sm mb-2">Citations:</h4>
-            <div class="space-y-2">
-              ${matches.map(entry => `
-                <div class="text-xs">
-                  <a href="${escapeHtml(entry.url)}" target="_blank" rel="noopener noreferrer" class="text-indigo-600 hover:underline">
-                    ${escapeHtml(entry.citation)}
-                  </a>
-                </div>
-              `).join('')}
+            <h4 class="font-semibold text-sm mb-3">Theologian perspectives</h4>
+            <div class="space-y-3">
+              ${matches.map(entry => {
+                const century = entry.century < 0 ? `${Math.abs(entry.century)} BC` : `${entry.century}th c.`;
+                
+                // Determine content (excerpt for public domain, summary for modern)
+                let content = '';
+                if (entry.mode === 'excerpt' && entry.excerpt) {
+                  content = `<p class="text-sm italic text-slate-700">"${escapeHtml(entry.excerpt)}"</p>`;
+                } else if (entry.summary) {
+                  content = `<p class="text-sm text-slate-700">${escapeHtml(entry.summary)}</p>`;
+                }
+                
+                return `
+                  <div class="p-3 bg-slate-50 rounded-lg">
+                    <div class="flex items-start justify-between mb-2">
+                      <div>
+                        <div class="font-semibold text-sm">${escapeHtml(entry.theologian)}</div>
+                        <div class="text-xs text-slate-500">${escapeHtml(entry.tradition)}, ${century}</div>
+                      </div>
+                    </div>
+                    ${content}
+                    <div class="mt-2 text-xs">
+                      <a href="${escapeHtml(entry.url)}" target="_blank" rel="noopener noreferrer" class="text-indigo-600 hover:underline">
+                        ${escapeHtml(entry.citation)}
+                      </a>
+                    </div>
+                  </div>
+                `;
+              }).join('')}
             </div>
           </div>
         `;
