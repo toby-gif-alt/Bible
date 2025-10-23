@@ -72,6 +72,15 @@
         </section>
 
         <section>
+          <h3 class="font-semibold text-slate-700">Group / Family Mode</h3>
+          <p class="text-sm text-slate-500 mb-2">Enable discussion questions for different age groups (Child, Teen, Adult).</p>
+          <label class="flex items-center gap-2 cursor-pointer">
+            <input type="checkbox" id="groupModeToggle" class="w-4 h-4 rounded">
+            <span class="text-sm">Enable Group / Family Mode</span>
+          </label>
+        </section>
+
+        <section>
           <h3 class="font-semibold text-slate-700">Statement</h3>
           <p class="text-sm text-slate-600">This app aims to help Christians know the Scriptures deeply and devotionally. It presents multiple perspectives from the historic church while encouraging prayerful discernment.</p>
           <blockquote class="mt-2 border-l-4 border-indigo-400 pl-3 italic text-sm text-slate-700" id="randomBlessing">
@@ -198,6 +207,30 @@
 
           <div class="p-3 bg-slate-50 rounded-xl" id="lensContent">
             <!-- dynamic prompts / content per day -->
+          </div>
+
+          <!-- Group Questions Box -->
+          <div id="groupQuestionsBox" class="hidden p-4 bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl border border-purple-200">
+            <div class="flex items-center justify-between mb-3">
+              <h3 class="font-semibold text-lg text-purple-900">Group Questions</h3>
+              <button id="copyForTonightBtn" class="px-3 py-2 rounded-lg bg-purple-600 text-white text-sm hover:bg-purple-500 active:scale-[0.98]">
+                Copy for tonight
+              </button>
+            </div>
+            <div class="space-y-4">
+              <div class="p-3 bg-white rounded-lg border border-blue-200">
+                <h4 class="font-semibold text-blue-900 mb-2">👶 Child</h4>
+                <ul id="childQuestions" class="list-disc ml-5 text-sm text-slate-700"></ul>
+              </div>
+              <div class="p-3 bg-white rounded-lg border border-green-200">
+                <h4 class="font-semibold text-green-900 mb-2">🧑 Teen</h4>
+                <ul id="teenQuestions" class="list-disc ml-5 text-sm text-slate-700"></ul>
+              </div>
+              <div class="p-3 bg-white rounded-lg border border-purple-200">
+                <h4 class="font-semibold text-purple-900 mb-2">👨 Adult</h4>
+                <ul id="adultQuestions" class="list-disc ml-5 text-sm text-slate-700"></ul>
+              </div>
+            </div>
           </div>
 
           <!-- Theologians & Traditions Panel -->
@@ -389,6 +422,7 @@
       primary: 'WEB',
       secondary: 'none',
       startDate: '2025-01-06', // Monday week 1 anchor; change as desired
+      groupMode: false,
     });
 
     // Basic navigation
@@ -410,10 +444,13 @@
     // Version selectors
     const primaryVersion = document.getElementById('primaryVersion');
     const secondaryVersion = document.getElementById('secondaryVersion');
+    const groupModeToggle = document.getElementById('groupModeToggle');
     primaryVersion.value = state.primary;
     secondaryVersion.value = state.secondary;
+    groupModeToggle.checked = state.groupMode;
     primaryVersion.onchange = () => { state.primary = primaryVersion.value; LS.set('state', state); renderStudy(); };
     secondaryVersion.onchange = () => { state.secondary = secondaryVersion.value; LS.set('state', state); renderStudy(); };
+    groupModeToggle.onchange = () => { state.groupMode = groupModeToggle.checked; LS.set('state', state); renderStudy(); };
 
     // Weekly selection (based on weeks since startDate)
     function weekIndex(){
@@ -566,6 +603,39 @@
         b.classList.toggle('text-white', Number(b.dataset.day)===day);
         b.onclick = ()=> renderLens(Number(b.dataset.day), parsed);
       }
+
+      // Update Group Questions box
+      const groupBox = document.getElementById('groupQuestionsBox');
+      if(state.groupMode){
+        groupBox.classList.remove('hidden');
+        const questions = generateGroupQuestions(day, parsed);
+        document.getElementById('childQuestions').innerHTML = questions.child.map(q=>`<li>${q}</li>`).join('');
+        document.getElementById('teenQuestions').innerHTML = questions.teen.map(q=>`<li>${q}</li>`).join('');
+        document.getElementById('adultQuestions').innerHTML = questions.adult.map(q=>`<li>${q}</li>`).join('');
+        
+        // Setup copy button
+        document.getElementById('copyForTonightBtn').onclick = async ()=> {
+          const ref = thisWeekRef();
+          const parsed = parseRef(ref);
+          const verses = await getPassage(state.primary, parsed.book, parsed.chapter, parsed.v1, parsed.v2);
+          const verseText = verses.map(v=>`${v.n} ${v.t}`).join(' ');
+          
+          let copyText = `${ref} (${state.primary})\n${verseText}\n\n`;
+          copyText += `Group Questions for Tonight:\n\n`;
+          copyText += `CHILD:\n${questions.child[0]}\n\n`;
+          copyText += `TEEN:\n${questions.teen[0]}\n\n`;
+          copyText += `ADULT:\n${questions.adult[0]}\n`;
+          
+          try {
+            await navigator.clipboard.writeText(copyText);
+            toast('Copied to clipboard!');
+          } catch(err){
+            toast('Copy failed - try selecting and copying manually');
+          }
+        };
+      } else {
+        groupBox.classList.add('hidden');
+      }
     }
 
     function quickPrompts(day, parsed){
@@ -605,6 +675,144 @@
         `Write one concrete next step for this week.`,
         `Share with a friend for encouragement.`
       ];
+    }
+
+    // Generate age-appropriate group questions based on lens
+    function generateGroupQuestions(day, parsed){
+      const ref = `${parsed.book} ${parsed.chapter}:${parsed.v1}${parsed.v2?'–'+parsed.v2:''}`;
+      
+      if(day===1){ // Context
+        return {
+          child: [
+            "Who is talking in this verse?",
+            "What happened just before this?",
+            "What is the main idea here?"
+          ],
+          teen: [
+            "Who is the speaker and who is listening?",
+            "What happened before this verse that helps us understand it?",
+            "How does this verse fit into the bigger story of the chapter?"
+          ],
+          adult: [
+            "Who is speaking and what is the historical context?",
+            "What theological themes precede this passage?",
+            "How does this verse advance the author's argument in the book?"
+          ]
+        };
+      }
+      if(day===2){ // Translation
+        return {
+          child: [
+            "Which words sound different between the two versions?",
+            "Which version is easier to understand?",
+            "Can you say this verse in your own simple words?"
+          ],
+          teen: [
+            "What are the main differences in wording between translations?",
+            "Which translation makes the meaning clearer and why?",
+            "How would you explain this verse to a friend?"
+          ],
+          adult: [
+            "What key words differ significantly between translations?",
+            "What theological implications arise from these translation choices?",
+            "How do the original language nuances inform our understanding?"
+          ]
+        };
+      }
+      if(day===3){ // Word Study
+        return {
+          child: [
+            "What is the most important word in this verse?",
+            "What does that word mean?",
+            "Can you use that word in a sentence?"
+          ],
+          teen: [
+            "What are 1-2 key words that stand out to you?",
+            "What do these words really mean in this context?",
+            "How would you explain this verse using everyday words?"
+          ],
+          adult: [
+            "What are the crucial terms requiring deeper lexical study?",
+            "How do these key words function in the original language?",
+            "How would you paraphrase this passage preserving theological precision?"
+          ]
+        };
+      }
+      if(day===4){ // Theologians
+        return {
+          child: [
+            "What does this verse teach us about God?",
+            "What does this verse teach us about people?",
+            "Is there something here to thank God for?"
+          ],
+          teen: [
+            "What do these writers agree about in this verse?",
+            "What different ideas do they emphasize?",
+            "Which perspective helps you understand God better?"
+          ],
+          adult: [
+            "What theological consensus emerges from these voices?",
+            "What denominational or traditional differences appear?",
+            "How can we hold these perspectives in creative tension?"
+          ]
+        };
+      }
+      if(day===5){ // Cross-References
+        return {
+          child: [
+            "Where else in the Bible do we hear about this?",
+            "How are these verses connected?",
+            "What do both verses teach us?"
+          ],
+          teen: [
+            "Where else does the Bible talk about this idea?",
+            "How do these cross-references help explain this verse?",
+            "What pattern or theme do you see across these passages?"
+          ],
+          adult: [
+            "How do these cross-references illuminate the passage theologically?",
+            "What promise→fulfillment pattern emerges across testaments?",
+            "How does this fit into the larger biblical-theological framework?"
+          ]
+        };
+      }
+      if(day===6){ // Meditation
+        return {
+          child: [
+            "What in this verse makes you happy?",
+            "What can you thank God for from this verse?",
+            "What is one thing you can pray about?"
+          ],
+          teen: [
+            "What does this verse reveal about God's character?",
+            "How does this verse encourage or challenge you?",
+            "What will you pray about after reading this?"
+          ],
+          adult: [
+            "What attributes of God are revealed in this text?",
+            "How can you turn this passage into sustained prayer?",
+            "What is your 'I will…' response to this meditation?"
+          ]
+        };
+      }
+      // day===7: Application
+      return {
+        child: [
+          "What is one thing you learned today?",
+          "What can you do this week to remember this verse?",
+          "Who can you tell about this verse?"
+        ],
+        teen: [
+          "What is one practical step you can take this week?",
+          "How can you apply this verse to your life right now?",
+          "Who could you share this verse with and why?"
+        ],
+        adult: [
+          "What specific, measurable action will you take this week?",
+          "How does this passage reshape your discipleship priorities?",
+          "How can you incarnate this truth in your community?"
+        ]
+      };
     }
 
     // Theologians & Traditions rendering
