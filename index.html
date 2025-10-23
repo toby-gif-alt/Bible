@@ -768,6 +768,43 @@
       return transformed;
     }
 
+    // Get total verses for a chapter (with localStorage caching)
+    async function totalVerses(version, book, chapter) {
+      const cacheKey = `versesCount:${book}:${chapter}:${version}`;
+      const cached = LS.get(cacheKey, null);
+      if (cached !== null) return cached;
+      
+      // Fetch and cache the version file if not already loaded
+      if (!loadedBibles[version]) {
+        try {
+          const filename = getVersionFile(version);
+          const response = await fetch("./" + filename);
+          if (response.ok) {
+            const data = await response.json();
+            const transformed = transformBibleData(data);
+            loadedBibles[version] = transformed;
+          } else {
+            loadedBibles[version] = {};
+          }
+        } catch (err) {
+          console.warn(`Failed to load version ${version}:`, err);
+          loadedBibles[version] = {};
+        }
+      }
+
+      // Access verses from the cached Bible data
+      const verses = loadedBibles[version]?.[book]?.[String(chapter)];
+      
+      // If book or chapter doesn't exist, return 0
+      if (!verses || verses.length === 0) {
+        return 0;
+      }
+      
+      const count = verses.length;
+      LS.set(cacheKey, count);
+      return count;
+    }
+
     // Load passage and return verses with verse numbers
     async function loadPassage(version, book, chapter, v1, v2) {
       // Fetch and cache the version file if not already loaded
@@ -799,9 +836,31 @@
         }];
       }
 
-      // Slice verses for v1-v2 if provided (1-based inclusive)
-      const startIndex = v1 !== null ? v1 - 1 : 0;
-      const endIndex = v2 !== null ? v2 : (v1 !== null ? v1 : verses.length);
+      // Get total verses for clamping
+      const total = verses.length;
+
+      // Handle different cases:
+      // 1. If v1 && !v2: return verse v1 only
+      // 2. If v1 && v2: return v1..v2 inclusive; clamp to [1, totalVerses]
+      // 3. If neither v1 nor v2: return full chapter
+      
+      let startIndex, endIndex;
+      
+      if (v1 !== null && v2 === null) {
+        // Case 1: Single verse v1
+        startIndex = Math.max(1, Math.min(v1, total)) - 1;
+        endIndex = startIndex + 1;
+      } else if (v1 !== null && v2 !== null) {
+        // Case 2: Range v1..v2, clamped to [1, total]
+        const clampedV1 = Math.max(1, Math.min(v1, total));
+        const clampedV2 = Math.max(1, Math.min(v2, total));
+        startIndex = clampedV1 - 1;
+        endIndex = clampedV2; // slice end is exclusive, so no +1 needed
+      } else {
+        // Case 3: Full chapter
+        startIndex = 0;
+        endIndex = total;
+      }
       
       // Return verses in {n, t} format
       return verses.slice(startIndex, endIndex).map((text, index) => ({
@@ -812,17 +871,7 @@
 
     // Get verse count for a chapter (with caching)
     async function getVerseCount(version, book, chapter) {
-      const cacheKey = `versesCount:${book}:${chapter}`;
-      const cached = LS.get(cacheKey, null);
-      if (cached !== null) return cached;
-      
-      const verses = await loadPassage(version, book, chapter, null, null);
-      // Check if it's an error message
-      if (verses.length === 1 && verses[0].n === 0) return 0;
-      
-      const count = verses.length;
-      LS.set(cacheKey, count);
-      return count;
+      return await totalVerses(version, book, chapter);
     }
 
     // Compute middle verse for a chapter
