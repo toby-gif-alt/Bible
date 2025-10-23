@@ -601,15 +601,20 @@
     function buildPlan() {
       const track = state.track || 'whole-bible';
       
-      if (track === 'john-first') {
-        return buildJohnFirstPlan();
-      } else if (track === 'nt-first') {
-        return buildNTFirstPlan();
-      } else if (track === 'gospels-harmony') {
-        return buildGospelsHarmonyPlan();
-      } else {
-        // 'whole-bible' - default
-        return buildWholeBiblePlan();
+      try {
+        if (track === 'john-first') {
+          return buildJohnFirstPlan();
+        } else if (track === 'nt-first') {
+          return buildNTFirstPlan();
+        } else if (track === 'gospels-harmony') {
+          return buildGospelsHarmonyPlan();
+        } else {
+          // 'whole-bible' - default
+          return buildWholeBiblePlan();
+        }
+      } catch (e) {
+        console.error('Error building plan:', e);
+        return buildWholeBiblePlan(); // Fallback to default
       }
     }
     
@@ -793,7 +798,21 @@
       return `${parsed.book} ${parsed.chapter}`;
     }
     
-    PLAN = buildPlan();
+    // Initialize PLAN
+    try {
+      PLAN = buildPlan();
+      if (!Array.isArray(PLAN)) {
+        console.error('PLAN is not an array, resetting to default');
+        state.track = 'whole-bible';
+        LS.set('state', state);
+        PLAN = buildWholeBiblePlan();
+      }
+    } catch (e) {
+      console.error('Error initializing PLAN:', e);
+      state.track = 'whole-bible';
+      LS.set('state', state);
+      PLAN = buildWholeBiblePlan();
+    }
 
     // Basic navigation
     function nav(id){
