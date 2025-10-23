@@ -7,8 +7,8 @@
   <!-- Tailwind via CDN for a clean, mobile‑first UI -->
   <script src="https://cdn.tailwindcss.com"></script>
   <meta name="theme-color" content="#0f172a" />
-  <link rel="manifest" href="/manifest.webmanifest" />
-  <link rel="icon" href="/assets/icon-192.svg" type="image/svg+xml" />
+  <link rel="manifest" href="./manifest.webmanifest" />
+  <link rel="icon" href="./assets/icon-192.png" type="image/png" />
   <style>
     /* Utility tweaks for mobile */
     .safe { padding-bottom: env(safe-area-inset-bottom); }
@@ -286,7 +286,7 @@
           </div>
 
           <!-- Cross-References Panel -->
-          <div class="border rounded-xl overflow-hidden">
+          <div id="xrefsPanel" class="border rounded-xl overflow-hidden">
             <button id="xrefsToggle" class="w-full px-4 py-3 bg-slate-100 hover:bg-slate-200 flex items-center justify-between">
               <span class="font-semibold">Cross-References</span>
               <span id="xrefsChevron">▼</span>
@@ -294,6 +294,11 @@
             <div id="xrefsContent" class="p-4 bg-white hidden">
               <div id="xrefsList"></div>
             </div>
+          </div>
+          
+          <!-- No Cross-References Message (shown when xrefs not available) -->
+          <div id="noXrefsMessage" class="hidden p-3 bg-slate-50 rounded-lg text-sm text-slate-500">
+            No cross-references yet.
           </div>
 
           <div>
@@ -1402,6 +1407,8 @@
       const toggleBtn = document.getElementById('xrefsToggle');
       const contentEl = document.getElementById('xrefsContent');
       const chevron = document.getElementById('xrefsChevron');
+      const panelEl = document.getElementById('xrefsPanel');
+      const noXrefsEl = document.getElementById('noXrefsMessage');
       
       // Setup toggle handler
       toggleBtn.onclick = () => {
@@ -1412,7 +1419,7 @@
 
       // Load cross-references data
       try {
-        const response = await fetch(`xrefs/${parsed.book}.json`);
+        const response = await fetch(`./xrefs/${parsed.book}.json`);
         if(!response.ok) throw new Error('File not found');
         const xrefsData = await response.json();
         
@@ -1431,9 +1438,15 @@
         }
         
         if(allXrefs.length === 0){
-          listEl.innerHTML = '<p class="text-sm text-slate-500">No cross-references recorded.</p>';
+          // Hide panel, show "no xrefs yet" message
+          panelEl.classList.add('hidden');
+          noXrefsEl.classList.remove('hidden');
           return;
         }
+
+        // Show panel, hide message
+        panelEl.classList.remove('hidden');
+        noXrefsEl.classList.add('hidden');
 
         // Render cross-references
         let html = '';
@@ -1503,7 +1516,9 @@
           };
         }
       } catch(err) {
-        listEl.innerHTML = '<p class="text-sm text-slate-500">No cross-references recorded.</p>';
+        // Hide panel, show "no xrefs yet" message
+        panelEl.classList.add('hidden');
+        noXrefsEl.classList.remove('hidden');
       }
     }
 
@@ -1923,7 +1938,7 @@
       });
 
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/sw.js')
+        navigator.serviceWorker.register('./sw.js')
           .then((registration) => {
             console.log('Service Worker registered successfully:', registration.scope);
             
@@ -1949,8 +1964,8 @@
               showUpdatePrompt(registration);
             }
           })
-          .catch((error) => {
-            console.error('Service Worker registration failed:', error);
+          .catch(() => {
+            // Swallow error in dev - SW is optional
           });
       });
     }
