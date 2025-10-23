@@ -610,6 +610,49 @@
     }
     COVERAGE = generateCoverage();
 
+    // Book name aliases for normalization
+    const BOOK_ALIASES = {
+      "Psalm": "Psalms",
+      "Ps": "Psalms",
+      "Psa": "Psalms",
+      "Song": "Song of Solomon",
+      "Song of Songs": "Song of Solomon",
+      "Canticles": "Song of Solomon",
+      "Cant": "Song of Solomon",
+      "I John": "1 John",
+      "I Peter": "1 Peter",
+      "I Timothy": "1 Timothy",
+      "I Thessalonians": "1 Thessalonians",
+      "II John": "2 John",
+      "II Peter": "2 Peter",
+      "II Timothy": "2 Timothy",
+      "II Thessalonians": "2 Thessalonians",
+      "III John": "3 John"
+    };
+
+    // Resolve book name to canonical form
+    function resolveBookName(book) {
+      const trimmed = book.trim();
+      return BOOK_ALIASES[trimmed] || trimmed;
+    }
+
+    // Parse ref like "John 3:16" or "Matthew 5:3-10" or "Psalm 1:1–3" (en-dash U+2013)
+    // Accepts variable spacing like "Psalm  1 : 1–3"
+    function parseRef(ref){
+      // Replace en-dash (U+2013) with regular hyphen, normalize spaces around colons and hyphens
+      const normalized = ref.replace(/\u2013/g, '-').replace(/\s*:\s*/g, ':').replace(/\s*-\s*/g, '-');
+      // Match: book name, chapter, optional verse or verse range
+      const m = normalized.match(/^(.*?)\s+(\d+)(?::(\d+)(?:-(\d+))?)?$/);
+      if(!m) return null;
+      const book = resolveBookName(m[1]);
+      return { 
+        book: book, 
+        chapter: Number(m[2]), 
+        v1: m[3] ? Number(m[3]) : null, 
+        v2: m[4] ? Number(m[4]) : null 
+      };
+    }
+
     // Build complete PLAN: BIG_VERSES followed by COVERAGE (excluding duplicates)
     let PLAN = [];
     function buildPlan() {
@@ -679,11 +722,26 @@
       document.getElementById('thisWeekRef').innerText = thisWeekRef();
     }
 
-    // Parse ref like "John 3:16" or "Matthew 5:3-10"
-    function parseRef(ref){
-      const m = ref.match(/^(.*?)\s+(\d+)(?::(\d+)(?:-(\d+))?)?$/);
-      if(!m) return null;
-      return { book: m[1], chapter: m[2], v1: m[3] ? +m[3] : 1, v2: m[4] ? +m[4] : (m[3]?+m[3]:null) };
+    // Version file mapping (case-insensitive keys)
+    const VERSION_FILES = {
+      "KJV": "kjv.json",
+      "WEB": "web.json",
+      "ASV": "asv.json",
+      "GENEVA": "geneva.json",
+      "BISHOPS": "bishops.json",
+      "COVERDALE": "coverdale.json",
+      "TYNDALE": "tyndale.json",
+      "NET": "net.json"
+    };
+
+    // Get version file with case-insensitive lookup
+    function getVersionFile(version) {
+      const upperVersion = version.toUpperCase();
+      const filename = VERSION_FILES[upperVersion];
+      if (!filename) {
+        throw new Error(`Unknown Bible version: ${version}`);
+      }
+      return filename;
     }
 
     // Cache for loaded Bible JSONs (to avoid re-fetching)
@@ -714,9 +772,9 @@
     async function loadPassage(version, book, chapter, v1, v2) {
       // Fetch and cache the version file if not already loaded
       if (!loadedBibles[version]) {
-        const filename = version.toLowerCase() + '.json';
         try {
-          const response = await fetch(filename);
+          const filename = getVersionFile(version);
+          const response = await fetch("./" + filename);
           if (response.ok) {
             const data = await response.json();
             const transformed = transformBibleData(data);
@@ -725,7 +783,7 @@
             loadedBibles[version] = {};
           }
         } catch (err) {
-          console.warn(`Failed to load ${filename}:`, err);
+          console.warn(`Failed to load version ${version}:`, err);
           loadedBibles[version] = {};
         }
       }
@@ -737,16 +795,16 @@
       if (!verses || verses.length === 0) {
         return [{
           n: 0,
-          t: `[${version}] ${book} ${chapter}:${v1 || 1}${v2 ? '-' + v2 : ''} not found.`
+          t: `[${version}] ${book} ${chapter}:${v1 || 1}${v2 ? '–' + v2 : ''} not found.`
         }];
       }
 
-      // Slice verses for v1-v2 if provided
-      const startIndex = v1 ? v1 - 1 : 0;
-      const endIndex = v2 ? v2 - 1 : verses.length - 1;
+      // Slice verses for v1-v2 if provided (1-based inclusive)
+      const startIndex = v1 !== null ? v1 - 1 : 0;
+      const endIndex = v2 !== null ? v2 : (v1 !== null ? v1 : verses.length);
       
       // Return verses in {n, t} format
-      return verses.slice(startIndex, endIndex + 1).map((text, index) => ({
+      return verses.slice(startIndex, endIndex).map((text, index) => ({
         n: startIndex + index + 1,
         t: text
       }));
@@ -790,7 +848,8 @@
       document.getElementById('studyRef').innerText = ref + ' (' + state.primary + (state.secondary!=='none'? ' + ' + state.secondary : '') + ')';
 
       const primary = await getPassage(state.primary, parsed.book, parsed.chapter, parsed.v1, parsed.v2);
-      document.getElementById('studyPassageHeading').innerText = `${parsed.book} ${parsed.chapter}:${parsed.v1}${parsed.v2?'–'+parsed.v2:''} — ${state.primary}`;
+      // Use resolved book name in heading
+      document.getElementById('studyPassageHeading').innerText = `${parsed.book} ${parsed.chapter}:${parsed.v1 !== null ? parsed.v1 : 1}${parsed.v2 !== null ? '–' + parsed.v2 : ''} — ${state.primary}`;
       document.getElementById('studyPassageText').innerHTML = versesToHTML(primary);
 
       if(state.secondary!=="none"){
@@ -862,7 +921,7 @@
 
     function renderLens(day, parsed){
       const el = document.getElementById('lensContent');
-      const refStr = `${parsed.book} ${parsed.chapter}:${parsed.v1}${parsed.v2?'–'+parsed.v2:''}`;
+      const refStr = `${parsed.book} ${parsed.chapter}:${parsed.v1 !== null ? parsed.v1 : 1}${parsed.v2 !== null ? '–' + parsed.v2 : ''}`;
       const lenses = {
         1: {
           title: 'Context & Big Picture',
@@ -992,7 +1051,7 @@
 
     // Generate age-appropriate group questions based on lens
     function generateGroupQuestions(day, parsed){
-      const ref = `${parsed.book} ${parsed.chapter}:${parsed.v1}${parsed.v2?'–'+parsed.v2:''}`;
+      const ref = `${parsed.book} ${parsed.chapter}:${parsed.v1 !== null ? parsed.v1 : 1}${parsed.v2 !== null ? '–' + parsed.v2 : ''}`;
       
       if(day===1){ // Context
         return {
