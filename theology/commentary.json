@@ -1,0 +1,55 @@
+[
+  {
+    "id": "john3_16_augustine",
+    "ref": "John 3:16",
+    "tradition": "Patristic",
+    "theologian": "Augustine",
+    "work": "Tractates on the Gospel of John",
+    "century": 5,
+    "mode": "excerpt",
+    "license": "public-domain",
+    "excerpt": "For God so loved the world: therefore He loved us before we loved Him. For how would we love, unless He loved us first?",
+    "summary": "Augustine stresses God's prior love that awakens our love and faith.",
+    "takeaways": [
+      "Divine love precedes human response",
+      "Salvation is gift, not earned"
+    ],
+    "citation": "Augustine, Tractates on the Gospel of John, Tractate 12",
+    "url": "https://www.newadvent.org/fathers/1701012.htm"
+  },
+  {
+    "id": "john3_16_calvin",
+    "ref": "John 3:16",
+    "tradition": "Reformation",
+    "theologian": "John Calvin",
+    "work": "Commentary on John",
+    "century": 16,
+    "mode": "excerpt",
+    "license": "public-domain",
+    "excerpt": "Christ is set before us as the object of our faith. He invites all indiscriminately to the participation of life, and testifies that those who believe in Him shall not perish.",
+    "summary": "Calvin highlights the universal gospel offer and the promise to believers.",
+    "takeaways": [
+      "Christ the object of faith",
+      "Promise: believers shall not perish"
+    ],
+    "citation": "Calvin, Commentary on John 3:16",
+    "url": "https://www.ccel.org/ccel/calvin/calcom34"
+  },
+  {
+    "id": "ps23_chrysostom",
+    "ref": "Psalms 23:1-6",
+    "tradition": "Patristic",
+    "theologian": "John Chrysostom",
+    "work": "Homilies",
+    "century": 4,
+    "mode": "summary",
+    "license": "copyrighted-summary",
+    "summary": "Chrysostom reads the Shepherd as Christ who provides, guides, and defends, leading the believer through trials to God's house.",
+    "takeaways": [
+      "Christ as Shepherd",
+      "Providence in trials"
+    ],
+    "citation": "Chrysostom, Homilies (summary)",
+    "url": "https://www.newadvent.org/fathers/"
+  }
+]
