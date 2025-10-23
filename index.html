@@ -100,8 +100,8 @@
           <h3 class="font-semibold text-slate-700">Data & Privacy</h3>
           <p class="text-sm text-slate-600">All notes are stored on your device using localStorage. You can export/import below.</p>
           <div class="mt-2 flex gap-2">
-            <button id="exportBtn" class="px-3 py-2 rounded-lg bg-slate-900 text-white">Export Notes</button>
-            <label class="px-3 py-2 rounded-lg bg-slate-200 cursor-pointer">Import<input id="importInput" type="file" accept="application/json" class="hidden"/></label>
+            <button id="exportBtn" class="px-3 py-2 rounded-lg bg-slate-900 text-white">Export Data</button>
+            <label class="px-3 py-2 rounded-lg bg-slate-200 cursor-pointer">Import Data<input id="importInput" type="file" accept="application/json" class="hidden"/></label>
           </div>
         </section>
 
@@ -1197,33 +1197,63 @@
       }, 300);
     }
 
-    // Simple export/import for notes
+    // Export/import for user data
     document.getElementById('exportBtn').onclick = () => {
-      const data = {};
+      const data = {
+        state: {
+          primary: state.primary,
+          secondary: state.secondary,
+          startDate: state.startDate,
+          groupMode: state.groupMode
+        }
+      };
+      
+      // Add all notes:* and memory:* keys
       for(let i=0; i<localStorage.length; i++){
         const k = localStorage.key(i);
-        if(k.startsWith('notes:') || k.startsWith('memory:') || k==='state') data[k] = localStorage.getItem(k);
+        if(k.startsWith('notes:') || k.startsWith('memory:')){
+          data[k] = localStorage.getItem(k);
+        }
       }
+      
       const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
-      a.download = 'bible-study-notes.json';
+      a.download = 'bible-study-data.json';
       a.click();
     };
+    
     document.getElementById('importInput').onchange = async (e) => {
       const file = e.target.files[0];
       if(!file) return;
       const text = await file.text();
       try {
         const obj = JSON.parse(text);
-        for(const [k,v] of Object.entries(obj)){
-          localStorage.setItem(k, v);
+        
+        // Import state object
+        if(obj.state){
+          state.primary = obj.state.primary || state.primary;
+          state.secondary = obj.state.secondary || state.secondary;
+          state.startDate = obj.state.startDate || state.startDate;
+          state.groupMode = obj.state.groupMode || state.groupMode;
+          LS.set('state', state);
         }
-        state = LS.get('state', state);
+        
+        // Import notes:* and memory:* keys
+        for(const [k,v] of Object.entries(obj)){
+          if(k.startsWith('notes:') || k.startsWith('memory:')){
+            localStorage.setItem(k, v);
+          }
+        }
+        
+        // Update UI
         primaryVersion.value = state.primary;
         secondaryVersion.value = state.secondary;
+        groupModeToggle.checked = state.groupMode;
+        
         toast('Imported');
-        renderHome(); renderStudy();
+        renderHome();
+        renderStudy();
       } catch {
         toast('Import failed');
       }
