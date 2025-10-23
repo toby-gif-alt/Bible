@@ -42,17 +42,29 @@
       <div class="mt-4 space-y-6">
         <section>
           <h3 class="font-semibold text-slate-700">Bible Translation</h3>
-          <p class="text-sm text-slate-500 mb-2">Choose your primary reading translation. (KJV and WEB are included; more can be added.)</p>
+          <p class="text-sm text-slate-500 mb-2">Choose your primary reading translation.</p>
           <select id="primaryVersion" class="w-full border rounded-lg p-2">
-            <option value="KJV">KJV (Public Domain)</option>
-            <option value="WEB">WEB — World English Bible (PD)</option>
+            <option value="KJV">KJV (Authorized 1611/1769)</option>
+            <option value="WEB">WEB (World English Bible)</option>
+            <option value="ASV">ASV (American Standard Version)</option>
+            <option value="Geneva">Geneva</option>
+            <option value="Bishops">Bishops</option>
+            <option value="Coverdale">Coverdale</option>
+            <option value="Tyndale">Tyndale</option>
+            <option value="NET">NET</option>
           </select>
           <label class="block mt-3 text-sm text-slate-600">
             Secondary (for compare):
             <select id="secondaryVersion" class="w-full border rounded-lg p-2 mt-1">
               <option value="none">None</option>
-              <option value="WEB">WEB</option>
-              <option value="KJV">KJV</option>
+              <option value="KJV">KJV (Authorized 1611/1769)</option>
+              <option value="WEB">WEB (World English Bible)</option>
+              <option value="ASV">ASV (American Standard Version)</option>
+              <option value="Geneva">Geneva</option>
+              <option value="Bishops">Bishops</option>
+              <option value="Coverdale">Coverdale</option>
+              <option value="Tyndale">Tyndale</option>
+              <option value="NET">NET</option>
             </select>
           </label>
         </section>
@@ -341,6 +353,22 @@
           </section>
 
           <section>
+            <h3 class="font-semibold text-lg text-slate-800 mb-2">Bible Text Sources</h3>
+            <p class="text-slate-700 mb-2">Bible translations included in this app:</p>
+            <ul class="list-disc ml-5 text-slate-700 space-y-1">
+              <li><strong>KJV</strong> — King James Version (Authorized 1611/1769)</li>
+              <li><strong>WEB</strong> — World English Bible</li>
+              <li><strong>ASV</strong> — American Standard Version</li>
+              <li><strong>Geneva</strong> — Geneva Bible</li>
+              <li><strong>Bishops</strong> — Bishops' Bible</li>
+              <li><strong>Coverdale</strong> — Coverdale Bible</li>
+              <li><strong>Tyndale</strong> — Tyndale Bible</li>
+              <li><strong>NET</strong> — New English Translation</li>
+            </ul>
+            <p class="text-slate-700 mt-2 text-sm">Bibles sourced from Bible SuperSearch, licensed for non-commercial sharing. See each translation's copyright section in its JSON for more.</p>
+          </section>
+
+          <section>
             <h3 class="font-semibold text-lg text-slate-800 mb-2">Privacy</h3>
             <p class="text-slate-700 mb-2">Your data belongs to you:</p>
             <ul class="list-disc ml-5 text-slate-700 space-y-1">
@@ -366,21 +394,15 @@
 
   <script>
     /*********************
-     * Minimal Bible Data *
+     * Bible Data Loading *
      * ------------------ *
-     * To keep this single-file demo small, only a few chapters are embedded
-     * (John 1 & 3 KJV/WEB, Psalm 23 KJV/WEB). The app is designed to load
-     * full Bible JSON files if you add them to your repo later.
+     * This app loads full Bible JSON files from the repository root
+     * (kjv.json, web.json, asv.json, etc.). Each file contains the complete
+     * Bible text in a flat array format, which is transformed on load to
+     * book/chapter/verse structure and cached in memory.
      *
-     * HOW TO ADD FULL BIBLES (optional):
-     * 1) Create /bibles/KJV/ and /bibles/WEB/ folders in your repo.
-     * 2) Put JSON files named like "John.json", "Matthew.json", etc., where each file maps chapter→verse arrays.
-     *    Example schema:
-     *    {
-     *      "1": ["In the beginning ...", "He was ..."],
-     *      "2": ["On the third day ..."]
-     *    }
-     * 3) This index will try to fetch them on demand. If not found, it falls back to the embedded samples.
+     * Fallback: If a root JSON is not found, the app tries /bibles/{VERSION}/{Book}.json
+     * for individual books, and finally falls back to embedded sample passages.
      */
 
     const BOOKS = {
@@ -664,19 +686,76 @@
       return { book: m[1], chapter: m[2], v1: m[3] ? +m[3] : 1, v2: m[4] ? +m[4] : (m[3]?+m[3]:null) };
     }
 
+    // Cache for loaded Bible JSONs (to avoid re-fetching)
+    const loadedBibles = {};
+
+    // Transform flat Bible JSON to book/chapter structure
+    function transformBibleData(data) {
+      if (!data || !data.verses) return {};
+      
+      const transformed = {};
+      for (const verse of data.verses) {
+        const bookName = verse.book_name;
+        const chapter = String(verse.chapter);
+        const text = verse.text;
+        
+        if (!transformed[bookName]) {
+          transformed[bookName] = {};
+        }
+        if (!transformed[bookName][chapter]) {
+          transformed[bookName][chapter] = [];
+        }
+        transformed[bookName][chapter].push(text);
+      }
+      return transformed;
+    }
+
+    // Load and cache full Bible JSON
+    async function loadBibleJSON(version) {
+      // Return cached if already loaded
+      if (loadedBibles[version]) {
+        return loadedBibles[version];
+      }
+
+      // Try to load from root JSON file
+      const filename = version.toLowerCase() + '.json';
+      try {
+        const response = await fetch(filename);
+        if (response.ok) {
+          const data = await response.json();
+          const transformed = transformBibleData(data);
+          loadedBibles[version] = transformed;
+          return transformed;
+        }
+      } catch (err) {
+        console.warn(`Failed to load ${filename}:`, err);
+      }
+
+      // Return empty object if not found
+      loadedBibles[version] = {};
+      return {};
+    }
+
     // Load passage and return verses
     async function loadPassage(version, book, chapter) {
+      // First try loading from full Bible JSON
+      const bibleData = await loadBibleJSON(version);
+      if (bibleData[book] && bibleData[book][String(chapter)]) {
+        return bibleData[book][String(chapter)];
+      }
+
+      // Fallback to /bibles/{version}/{book}.json
       const path = `bibles/${version}/${book}.json`;
       try {
         const r = await fetch(path);
         if(r.ok){
           const data = await r.json();
           const verses = data[String(chapter)] || [];
-          if(!verses.length) throw new Error('No chapter');
-          return verses;
+          if(verses.length) return verses;
         }
       } catch {}
-      // Fallback to sample
+
+      // Final fallback to sample
       const src = SAMPLE[version]?.[book]?.[String(chapter)] || [];
       return src;
     }
