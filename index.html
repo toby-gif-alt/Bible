@@ -610,6 +610,49 @@
     }
     COVERAGE = generateCoverage();
 
+    // Book name aliases for normalization
+    const BOOK_ALIASES = {
+      "Psalm": "Psalms",
+      "Ps": "Psalms",
+      "Psa": "Psalms",
+      "Song": "Song of Solomon",
+      "Song of Songs": "Song of Solomon",
+      "Canticles": "Song of Solomon",
+      "Cant": "Song of Solomon",
+      "I John": "1 John",
+      "I Peter": "1 Peter",
+      "I Timothy": "1 Timothy",
+      "I Thessalonians": "1 Thessalonians",
+      "II John": "2 John",
+      "II Peter": "2 Peter",
+      "II Timothy": "2 Timothy",
+      "II Thessalonians": "2 Thessalonians",
+      "III John": "3 John"
+    };
+
+    // Resolve book name to canonical form
+    function resolveBookName(book) {
+      const trimmed = book.trim();
+      return BOOK_ALIASES[trimmed] || trimmed;
+    }
+
+    // Parse ref like "John 3:16" or "Matthew 5:3-10" or "Psalm 1:1–3" (en-dash U+2013)
+    // Accepts variable spacing like "Psalm  1 : 1–3"
+    function parseRef(ref){
+      // Replace en-dash (U+2013) with regular hyphen, normalize spaces around colons and hyphens
+      const normalized = ref.replace(/\u2013/g, '-').replace(/\s*:\s*/g, ':').replace(/\s*-\s*/g, '-');
+      // Match: book name, chapter, optional verse or verse range
+      const m = normalized.match(/^(.*?)\s+(\d+)(?::(\d+)(?:-(\d+))?)?$/);
+      if(!m) return null;
+      const book = resolveBookName(m[1]);
+      return { 
+        book: book, 
+        chapter: Number(m[2]), 
+        v1: m[3] ? Number(m[3]) : null, 
+        v2: m[4] ? Number(m[4]) : null 
+      };
+    }
+
     // Build complete PLAN: BIG_VERSES followed by COVERAGE (excluding duplicates)
     let PLAN = [];
     function buildPlan() {
@@ -677,49 +720,6 @@
     // Render home card
     function renderHome(){
       document.getElementById('thisWeekRef').innerText = thisWeekRef();
-    }
-
-    // Book name aliases for normalization
-    const BOOK_ALIASES = {
-      "Psalm": "Psalms",
-      "Ps": "Psalms",
-      "Psa": "Psalms",
-      "Song": "Song of Solomon",
-      "Song of Songs": "Song of Solomon",
-      "Canticles": "Song of Solomon",
-      "Cant": "Song of Solomon",
-      "I John": "1 John",
-      "I Peter": "1 Peter",
-      "I Timothy": "1 Timothy",
-      "I Thessalonians": "1 Thessalonians",
-      "II John": "2 John",
-      "II Peter": "2 Peter",
-      "II Timothy": "2 Timothy",
-      "II Thessalonians": "2 Thessalonians",
-      "III John": "3 John"
-    };
-
-    // Resolve book name to canonical form
-    function resolveBookName(book) {
-      const trimmed = book.trim();
-      return BOOK_ALIASES[trimmed] || trimmed;
-    }
-
-    // Parse ref like "John 3:16" or "Matthew 5:3-10" or "Psalm 1:1–3" (en-dash U+2013)
-    // Accepts variable spacing like "Psalm  1 : 1–3"
-    function parseRef(ref){
-      // Replace en-dash (U+2013) with regular hyphen, normalize spaces around colons and hyphens
-      const normalized = ref.replace(/\u2013/g, '-').replace(/\s*:\s*/g, ':').replace(/\s*-\s*/g, '-');
-      // Match: book name, chapter, optional verse or verse range
-      const m = normalized.match(/^(.*?)\s+(\d+)(?::(\d+)(?:-(\d+))?)?$/);
-      if(!m) return null;
-      const book = resolveBookName(m[1]);
-      return { 
-        book: book, 
-        chapter: Number(m[2]), 
-        v1: m[3] ? Number(m[3]) : null, 
-        v2: m[4] ? Number(m[4]) : null 
-      };
     }
 
     // Version file mapping (case-insensitive keys)
