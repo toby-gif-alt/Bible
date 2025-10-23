@@ -1055,19 +1055,258 @@
       return vs.map(v=>`<span class="text-slate-500 text-xs align-top mr-1">${v.n}</span>${escapeHtml(v.t)}`).join(' ');
     }
 
-    // Key theological terms for highlighting
-    const KEY_TERMS = [
-      'love', 'faith', 'grace', 'justify', 'justified', 'justification',
-      'Spirit', 'kingdom', 'shepherd', 'covenant', 'righteousness', 'righteous',
-      'holy', 'holiness', 'salvation', 'saved', 'savior', 'saviour',
-      'redemption', 'redeemed', 'redeem', 'forgiveness', 'forgive', 'forgiven',
-      'mercy', 'merciful', 'peace', 'hope', 'believe', 'believed', 'believing',
-      'blessed', 'blessing', 'truth', 'glory', 'glorify', 'glorified',
-      'eternal', 'life', 'death', 'resurrection', 'cross', 'sacrifice',
-      'sanctification', 'sanctify', 'sanctified', 'sin', 'sinned', 'sinners',
-      'repent', 'repentance', 'worship', 'prayer', 'praise',
-      'word', 'god', 'lord', 'christ', 'jesus', 'messiah'
+    // ==================== KEYWORD HIGHLIGHTER ====================
+    
+    // Theological terms that get frequency boost in auto-extraction
+    const THEO_TERMS = [
+      'love', 'faith', 'grace', 'justify', 'righteousness', 'spirit',
+      'kingdom', 'covenant', 'atonement', 'shepherd', 'mercy', 'hope',
+      'christ', 'lord', 'salvation', 'redeem', 'sanctify', 'believe',
+      'repent', 'forgive', 'blessed', 'eternal', 'heaven', 'holy'
     ];
+    
+    // Common stopwords to exclude from auto-extraction
+    const STOPWORDS = new Set([
+      'a', 'an', 'and', 'are', 'as', 'at', 'be', 'but', 'by', 'for',
+      'from', 'had', 'has', 'have', 'he', 'her', 'him', 'his', 'i',
+      'in', 'is', 'it', 'its', 'of', 'on', 'or', 'that', 'the', 'to',
+      'was', 'were', 'will', 'with', 'you', 'your', 'shall', 'shalt',
+      'thee', 'thou', 'thy', 'unto', 'ye', 'hath', 'hast', 'mine',
+      'than', 'then', 'them', 'they', 'there', 'this', 'been', 'not',
+      'no', 'all', 'out', 'up', 'down', 'who', 'what', 'when', 'where',
+      'which', 'why', 'how', 'if', 'said', 'say', 'let', 'me', 'my',
+      'she', 'we', 'him', 'did', 'do', 'does', 'into', 'over', 'any',
+      'some', 'so', 'such', 'their', 'these', 'those', 'us', 'would'
+    ]);
+    
+    /**
+     * Fast, idempotent keyword highlighter for Bible passages
+     * @param {HTMLElement} containerEl - Container element with text to highlight
+     * @param {Object} options - Highlighting options
+     * @param {string[]} options.terms - Manual terms to highlight (used with mode="terms")
+     * @param {number} options.maxMarks - Maximum number of marks to create (default: 24)
+     * @param {string} options.mode - "auto" or "terms" (default: "auto")
+     * @returns {number} Number of marks created
+     */
+    function highlightPassage(containerEl, options = {}) {
+      if (!containerEl) return 0;
+      
+      const {
+        terms = [],
+        maxMarks = 24,
+        mode = 'auto'
+      } = options;
+      
+      // Step 1: Remove any existing highlights (idempotent)
+      unwrapHighlights(containerEl);
+      
+      // Step 2: Determine which terms to highlight
+      let termsToHighlight = [];
+      if (mode === 'terms' && terms.length > 0) {
+        termsToHighlight = terms;
+      } else if (mode === 'auto') {
+        termsToHighlight = extractKeywords(containerEl);
+      }
+      
+      if (termsToHighlight.length === 0) return 0;
+      
+      // Step 3: Build regex pattern with word boundaries
+      const pattern = buildHighlightRegex(termsToHighlight);
+      if (!pattern) return 0;
+      
+      // Step 4: Collect all text nodes
+      const textNodes = collectTextNodes(containerEl);
+      
+      // Step 5: Apply highlights (limited to maxMarks)
+      return applyHighlights(textNodes, pattern, maxMarks);
+    }
+    
+    /**
+     * Remove all existing highlight marks
+     */
+    function unwrapHighlights(containerEl) {
+      const marks = containerEl.querySelectorAll('mark[data-hi="1"]');
+      marks.forEach(mark => {
+        const parent = mark.parentNode;
+        if (parent) {
+          // Replace mark with its text content
+          parent.replaceChild(document.createTextNode(mark.textContent), mark);
+          // Normalize to merge adjacent text nodes
+          parent.normalize();
+        }
+      });
+    }
+    
+    /**
+     * Extract top keywords from passage text (auto mode)
+     */
+    function extractKeywords(containerEl) {
+      const text = containerEl.textContent || '';
+      
+      // Extract words (A-Z only), normalize with NFC
+      const words = text
+        .normalize('NFC')
+        .match(/[A-Za-z]+/g) || [];
+      
+      if (words.length === 0) return [];
+      
+      // Count frequency, filter stopwords and short words
+      const frequency = {};
+      words.forEach(word => {
+        const lower = word.toLowerCase();
+        if (lower.length >= 4 && !STOPWORDS.has(lower)) {
+          frequency[lower] = (frequency[lower] || 0) + 1;
+        }
+      });
+      
+      // Score with theological boost
+      const scored = Object.entries(frequency).map(([word, freq]) => {
+        let score = freq;
+        // Boost theological terms
+        if (THEO_TERMS.includes(word)) {
+          score *= 2;
+        }
+        return { word, score };
+      });
+      
+      // Sort by score and take top 6
+      scored.sort((a, b) => b.score - a.score);
+      return scored.slice(0, 6).map(item => item.word);
+    }
+    
+    /**
+     * Build case-insensitive regex with word boundaries
+     */
+    function buildHighlightRegex(terms) {
+      if (terms.length === 0) return null;
+      
+      // Escape special regex characters
+      const escaped = terms.map(term => 
+        term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+      );
+      
+      // Create pattern with word boundaries
+      const pattern = '\\b(' + escaped.join('|') + ')\\b';
+      
+      try {
+        return new RegExp(pattern, 'gi');
+      } catch (e) {
+        console.warn('Failed to build highlight regex:', e);
+        return null;
+      }
+    }
+    
+    /**
+     * Collect all text nodes using TreeWalker
+     */
+    function collectTextNodes(containerEl) {
+      const textNodes = [];
+      const walker = document.createTreeWalker(
+        containerEl,
+        NodeFilter.SHOW_TEXT,
+        {
+          acceptNode: (node) => {
+            // Skip empty text nodes and nodes inside existing marks
+            if (!node.textContent.trim()) {
+              return NodeFilter.FILTER_REJECT;
+            }
+            // Check if parent is a mark (shouldn't happen after unwrap, but defensive)
+            if (node.parentNode && node.parentNode.tagName === 'MARK') {
+              return NodeFilter.FILTER_REJECT;
+            }
+            return NodeFilter.FILTER_ACCEPT;
+          }
+        }
+      );
+      
+      let node;
+      while ((node = walker.nextNode()) !== null) {
+        textNodes.push(node);
+      }
+      
+      return textNodes;
+    }
+    
+    /**
+     * Apply highlights to text nodes with maxMarks limit
+     */
+    function applyHighlights(textNodes, pattern, maxMarks) {
+      let marksCreated = 0;
+      
+      // Calculate stride for even distribution if needed
+      const stride = textNodes.length > maxMarks 
+        ? Math.ceil(textNodes.length / maxMarks)
+        : 1;
+      
+      for (let i = 0; i < textNodes.length && marksCreated < maxMarks; i++) {
+        const node = textNodes[i];
+        const text = node.textContent;
+        
+        // Normalize text with NFC for proper matching
+        const normalized = text.normalize('NFC');
+        
+        // Find all matches in this text node
+        const matches = [];
+        let match;
+        pattern.lastIndex = 0; // Reset regex state
+        
+        while ((match = pattern.exec(normalized)) !== null) {
+          matches.push({
+            index: match.index,
+            length: match[0].length,
+            text: match[0]
+          });
+        }
+        
+        if (matches.length === 0) continue;
+        
+        // Apply stride-based filtering for even distribution across long passages
+        // This ensures highlights are spread throughout the text rather than clustered
+        // at the beginning, while respecting the maxMarks limit
+        if (stride > 1 && i % stride !== 0) {
+          continue;
+        }
+        
+        // Create document fragment with highlighted text
+        const fragment = document.createDocumentFragment();
+        let lastIndex = 0;
+        
+        for (const m of matches) {
+          if (marksCreated >= maxMarks) break;
+          
+          // Add text before match
+          if (m.index > lastIndex) {
+            fragment.appendChild(
+              document.createTextNode(text.substring(lastIndex, m.index))
+            );
+          }
+          
+          // Add highlighted match
+          const mark = document.createElement('mark');
+          mark.setAttribute('data-hi', '1');
+          mark.className = 'bg-yellow-200 font-semibold';
+          mark.textContent = text.substring(m.index, m.index + m.length);
+          fragment.appendChild(mark);
+          
+          lastIndex = m.index + m.length;
+          marksCreated++;
+        }
+        
+        // Add remaining text
+        if (lastIndex < text.length) {
+          fragment.appendChild(
+            document.createTextNode(text.substring(lastIndex))
+          );
+        }
+        
+        // Replace the text node with the fragment (batch operation)
+        if (node.parentNode) {
+          node.parentNode.replaceChild(fragment, node);
+        }
+      }
+      
+      return marksCreated;
+    }
 
     // Helper to get day name
     function getDayName(dayNum) {
@@ -1258,9 +1497,20 @@
     // Step 1: Read
     async function renderReadStep(parsed, primary, secondary) {
       const bodyEl = document.getElementById('stepBody1');
-      let html = `<div class="prose max-w-none">
-        <div class="leading-relaxed text-base">${versesToHTML(primary)}</div>
-      </div>`;
+      const ref = getThisWeekRef();
+      const highlightKey = `ui:highlight:${ref}`;
+      let showHighlights = LS.get(highlightKey, true); // Default ON for Read step
+      
+      let html = `
+        <div class="mb-3">
+          <label class="flex items-center gap-2 cursor-pointer">
+            <input type="checkbox" id="readHighlightToggle" ${showHighlights ? 'checked' : ''} class="w-4 h-4 rounded">
+            <span class="text-sm">Show highlights</span>
+          </label>
+        </div>
+        <div class="prose max-w-none">
+          <div id="studyPassageText" class="leading-relaxed text-base">${versesToHTML(primary)}</div>
+        </div>`;
       
       if (secondary) {
         html += `
@@ -1272,33 +1522,39 @@
       }
       
       bodyEl.innerHTML = html;
+      
+      // Apply highlighting if enabled
+      if (showHighlights) {
+        const passageEl = document.getElementById('studyPassageText');
+        if (passageEl) {
+          highlightPassage(passageEl, { mode: 'auto' });
+        }
+      }
+      
+      // Setup toggle handler
+      const toggle = document.getElementById('readHighlightToggle');
+      if (toggle) {
+        toggle.onchange = () => {
+          const checked = toggle.checked;
+          LS.set(highlightKey, checked);
+          const passageEl = document.getElementById('studyPassageText');
+          if (passageEl) {
+            if (checked) {
+              highlightPassage(passageEl, { mode: 'auto' });
+            } else {
+              unwrapHighlights(passageEl);
+            }
+          }
+        };
+      }
     }
 
     // Step 2: Highlight
     async function renderHighlightStep(parsed, primary) {
       const bodyEl = document.getElementById('stepBody2');
-      const highlightKey = `ui:highlight:${getThisWeekRef()}`;
-      let showHighlights = LS.get(highlightKey, true);
-      
-      // Generate highlighted text
-      const highlightedHTML = primary.map(v => {
-        const words = v.t.split(/(\s+|[.,;:!?—"'()[\]{}])/);
-        const highlighted = words.map(word => {
-          if (!word || /^\s+$/.test(word) || /^[.,;:!?—"'()[\]{}]+$/.test(word)) {
-            return escapeHtml(word);
-          }
-          
-          // Check if word is a key term (case-insensitive)
-          const lowerWord = word.toLowerCase().replace(/[.,;:!?—"'()[\]{}]/g, '');
-          if (KEY_TERMS.includes(lowerWord)) {
-            return `<mark class="bg-yellow-200 font-semibold">${escapeHtml(word)}</mark>`;
-          }
-          
-          return escapeHtml(word);
-        }).join('');
-        
-        return `<span class="text-slate-500 text-xs align-top mr-1">${v.n}</span>${highlighted}`;
-      }).join(' ');
+      const ref = getThisWeekRef();
+      const highlightKey = `ui:highlight:${ref}`;
+      let showHighlights = LS.get(highlightKey, true); // Default ON for Highlight step
       
       let html = `
         <div class="mb-3">
@@ -1307,28 +1563,39 @@
             <span class="text-sm">Show highlights</span>
           </label>
         </div>
-        <div id="highlightedText" class="prose max-w-none leading-relaxed ${showHighlights ? '' : 'hidden'}">
-          ${highlightedHTML}
-        </div>
-        <div id="plainText" class="prose max-w-none leading-relaxed ${showHighlights ? 'hidden' : ''}">
-          ${versesToHTML(primary)}
+        <div class="prose max-w-none">
+          <div id="highlightPassageText" class="leading-relaxed text-base">${versesToHTML(primary)}</div>
         </div>
         <div class="mt-4 p-3 bg-slate-50 rounded-lg text-sm">
-          <div class="font-semibold mb-1">Highlighted terms:</div>
-          <div class="text-slate-600">Key theological words like "faith," "grace," "love," "Spirit," etc.</div>
+          <div class="font-semibold mb-1">Auto-detected keywords</div>
+          <div class="text-slate-600">The system automatically identifies up to 6 important theological terms and frequently occurring words in this passage. Theological terms like "faith," "love," "grace," and "spirit" are prioritized.</div>
         </div>
       `;
       
       bodyEl.innerHTML = html;
       
+      // Apply highlighting if enabled
+      if (showHighlights) {
+        const passageEl = document.getElementById('highlightPassageText');
+        if (passageEl) {
+          highlightPassage(passageEl, { mode: 'auto' });
+        }
+      }
+      
       // Setup toggle handler
       const toggle = document.getElementById('highlightToggle');
       if (toggle) {
         toggle.onchange = () => {
-          showHighlights = toggle.checked;
-          LS.set(highlightKey, showHighlights);
-          document.getElementById('highlightedText').classList.toggle('hidden', !showHighlights);
-          document.getElementById('plainText').classList.toggle('hidden', showHighlights);
+          const checked = toggle.checked;
+          LS.set(highlightKey, checked);
+          const passageEl = document.getElementById('highlightPassageText');
+          if (passageEl) {
+            if (checked) {
+              highlightPassage(passageEl, { mode: 'auto' });
+            } else {
+              unwrapHighlights(passageEl);
+            }
+          }
         };
       }
     }
