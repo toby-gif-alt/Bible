@@ -1470,6 +1470,9 @@
       if (!p) return;
       getPassage('KJV', p.book, p.chapter, p.v1, p.v2).then(vs => {
         document.getElementById('randomBlessing').innerHTML = `“${escapeHtml(vs.map(x=>x.t).join(' '))}” — ${r}`;
+      
+      }).catch(() => {
+        document.getElementById("randomBlessing").innerHTML = `"Your word is a lamp unto my feet, and a light unto my path." — Psalm 119:105`;
       });
     }
 
