@@ -81,6 +81,14 @@
         </section>
 
         <section>
+          <h3 class="font-semibold text-slate-700">About & Approach</h3>
+          <p class="text-sm text-slate-600">Learn about the purpose, methodology, and privacy of this app.</p>
+          <button id="aboutBtn" class="mt-2 px-3 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-500 text-sm">
+            About & Approach
+          </button>
+        </section>
+
+        <section>
           <h3 class="font-semibold text-slate-700">Statement</h3>
           <p class="text-sm text-slate-600">This app aims to help Christians know the Scriptures deeply and devotionally. It presents multiple perspectives from the historic church while encouraging prayerful discernment.</p>
           <blockquote class="mt-2 border-l-4 border-indigo-400 pl-3 italic text-sm text-slate-700" id="randomBlessing">
@@ -286,14 +294,58 @@
         <div id="verses" class="mt-3 space-y-3"></div>
       </div>
     </section>
+
+    <!-- About & Approach -->
+    <section id="about" class="hidden">
+      <div class="rounded-2xl bg-white shadow p-4">
+        <h2 class="text-xl font-semibold mb-4">About & Approach</h2>
+        
+        <div class="space-y-4">
+          <section>
+            <h3 class="font-semibold text-lg text-slate-800 mb-2">Purpose</h3>
+            <p class="text-slate-700">This app aims to help Christians know Scripture deeply and devotionally. We provide tools and resources for weekly deep-dive study, combining structured daily lenses with historical theological insights.</p>
+          </section>
+
+          <section>
+            <h3 class="font-semibold text-lg text-slate-800 mb-2">Approach</h3>
+            <ul class="list-disc ml-5 text-slate-700 space-y-1">
+              <li><strong>Scripture interprets Scripture:</strong> We emphasize cross-references and biblical theology, letting the Bible illuminate itself.</li>
+              <li><strong>Reading across Christian traditions:</strong> We present perspectives from Catholic, Orthodox, Protestant, and other traditions to enrich understanding.</li>
+              <li><strong>Prayerful discernment:</strong> Study is paired with meditation, prayer, and application for spiritual formation.</li>
+              <li><strong>Humility about translations:</strong> We encourage comparing translations and understanding the original languages where possible, recognizing each translation's strengths.</li>
+            </ul>
+          </section>
+
+          <section>
+            <h3 class="font-semibold text-lg text-slate-800 mb-2">Sources</h3>
+            <p class="text-slate-700 mb-2">We are careful to honor the work of scholars and theologians:</p>
+            <ul class="list-disc ml-5 text-slate-700 space-y-1">
+              <li><strong>Public-domain excerpts</strong> (e.g., Augustine, Athanasius, Aquinas, Luther, Calvin, Wesley) are quoted directly with citations.</li>
+              <li><strong>Modern authors</strong> are summarized (not quoted) with proper citations, respecting copyright while sharing their insights.</li>
+            </ul>
+          </section>
+
+          <section>
+            <h3 class="font-semibold text-lg text-slate-800 mb-2">Privacy</h3>
+            <p class="text-slate-700 mb-2">Your data belongs to you:</p>
+            <ul class="list-disc ml-5 text-slate-700 space-y-1">
+              <li><strong>Local storage only:</strong> All notes and memory stats are stored only on your device using localStorage.</li>
+              <li><strong>No cloud sync:</strong> We don't collect, transmit, or store your data on any server.</li>
+              <li><strong>Export/import:</strong> You can manually export your notes as JSON and import them on another device or for backup purposes.</li>
+            </ul>
+          </section>
+        </div>
+      </div>
+    </section>
   </main>
 
   <!-- Footer nav -->
   <footer class="fixed bottom-0 inset-x-0 bg-white border-t safe">
-    <div class="max-w-3xl mx-auto px-4 py-2 grid grid-cols-3 gap-2">
+    <div class="max-w-3xl mx-auto px-4 py-2 grid grid-cols-4 gap-2">
       <button class="p-2 rounded-lg hover:bg-slate-100" onclick="nav('home')">Home</button>
       <button class="p-2 rounded-lg hover:bg-slate-100" onclick="nav('study')">Study</button>
       <button class="p-2 rounded-lg hover:bg-slate-100" onclick="nav('bible')">Bible</button>
+      <button class="p-2 rounded-lg hover:bg-slate-100" onclick="nav('about')">About</button>
     </div>
   </footer>
 
@@ -440,6 +492,7 @@
     document.getElementById('menuBtn').onclick = drawer.open;
     document.getElementById('drawerBackdrop').onclick = drawer.close;
     document.getElementById('drawerClose').onclick = drawer.close;
+    document.getElementById('aboutBtn').onclick = () => { drawer.close(); nav('about'); };
 
     // Version selectors
     const primaryVersion = document.getElementById('primaryVersion');
