@@ -163,22 +163,34 @@
     <!-- Study -->
     <section id="study" class="hidden">
       <div class="rounded-2xl bg-white shadow p-4">
-        <!-- Header -->
-        <div class="mb-4">
-          <h2 class="text-xl font-semibold" id="studyDayHeading">Monday Study</h2>
-          <p class="text-sm text-slate-600 mt-1" id="studyVerseInfo"></p>
-          <a href="#" id="openFullChapterLink" class="text-xs text-indigo-600 hover:underline mt-1 inline-block">Open full chapter →</a>
-          
-          <!-- Week Picker -->
-          <div class="mt-2 flex items-center gap-2 text-sm">
-            <span class="text-slate-600">Week:</span>
-            <span class="font-semibold" id="currentWeekDisplay">1</span>
-            <button id="changeWeekBtn" class="px-2 py-1 rounded bg-slate-200 hover:bg-slate-300 text-xs">Change…</button>
-          </div>
+        <!-- Initial Light View -->
+        <div id="studyInitialView">
+          <h2 class="text-2xl font-semibold mb-3" id="studyDayHeading">Monday Study</h2>
+          <p class="text-base text-slate-700 mb-6" id="studyVerseInfo"></p>
+          <button id="startTodayStepBtn" class="w-full px-6 py-4 rounded-lg bg-indigo-600 text-white text-lg font-semibold hover:bg-indigo-500 active:scale-[0.98] shadow-md">
+            Start today's step
+          </button>
         </div>
 
-        <!-- Stepper Container -->
-        <div id="studyStepper" class="space-y-3"></div>
+        <!-- Full Study View (hidden initially) -->
+        <div id="studyFullView" class="hidden">
+          <!-- Header -->
+          <div class="mb-4">
+            <h2 class="text-xl font-semibold" id="studyDayHeadingFull">Monday Study</h2>
+            <p class="text-sm text-slate-600 mt-1" id="studyVerseInfoFull"></p>
+            <a href="#" id="openFullChapterLink" class="text-xs text-indigo-600 hover:underline mt-1 inline-block">Open full chapter →</a>
+            
+            <!-- Week Picker -->
+            <div class="mt-2 flex items-center gap-2 text-sm">
+              <span class="text-slate-600">Week:</span>
+              <span class="font-semibold" id="currentWeekDisplay">1</span>
+              <button id="changeWeekBtn" class="px-2 py-1 rounded bg-slate-200 hover:bg-slate-300 text-xs">Change…</button>
+            </div>
+          </div>
+
+          <!-- Stepper Container -->
+          <div id="studyStepper" class="space-y-3"></div>
+        </div>
       </div>
     </section>
 
@@ -1069,28 +1081,55 @@
       const parsed = parseRef(ref);
       const dow = ((new Date().getDay()+6)%7)+1; // Mon=1..Sun=7
       
+      // Check if user has started the study for this week
+      const currentStepKey = `ui:step:${ref}`;
+      const hasStarted = LS.get(currentStepKey, null) !== null;
+      
       // Update header
       const dayName = getDayName(dow);
-      document.getElementById('studyDayHeading').innerText = `${dayName} Study`;
       const verseRef = `${parsed.book} ${parsed.chapter}:${parsed.v1 !== null ? parsed.v1 : 1}${parsed.v2 !== null ? '–' + parsed.v2 : ''}`;
+      
+      // Update both views' headings
+      document.getElementById('studyDayHeading').innerText = `${dayName} Study`;
       document.getElementById('studyVerseInfo').innerText = `Verse: ${verseRef} — ${state.primary}`;
       
-      // Update week display
-      const currentWeekNum = state.weekOverride !== null ? state.weekOverride : (weekIndex() + 1);
-      document.getElementById('currentWeekDisplay').innerText = currentWeekNum;
+      if (document.getElementById('studyDayHeadingFull')) {
+        document.getElementById('studyDayHeadingFull').innerText = `${dayName} Study`;
+      }
+      if (document.getElementById('studyVerseInfoFull')) {
+        document.getElementById('studyVerseInfoFull').innerText = `Verse: ${verseRef} — ${state.primary}`;
+      }
       
-      // Setup "Open full chapter" link - open in Reader instead of Bible
-      document.getElementById('openFullChapterLink').onclick = (e) => {
-        e.preventDefault();
-        openInReader(parsed.book, parsed.chapter, parsed.v1 || 1);
-      };
+      // Show appropriate view based on whether study has been started
+      const initialView = document.getElementById('studyInitialView');
+      const fullView = document.getElementById('studyFullView');
+      
+      if (hasStarted) {
+        // Show full view with stepper
+        initialView.classList.add('hidden');
+        fullView.classList.remove('hidden');
+        
+        // Update week display
+        const currentWeekNum = state.weekOverride !== null ? state.weekOverride : (weekIndex() + 1);
+        document.getElementById('currentWeekDisplay').innerText = currentWeekNum;
+        
+        // Setup "Open full chapter" link - open in Reader instead of Bible
+        document.getElementById('openFullChapterLink').onclick = (e) => {
+          e.preventDefault();
+          openInReader(parsed.book, parsed.chapter, parsed.v1 || 1);
+        };
 
-      // Load passage data
-      const primary = await getPassage(state.primary, parsed.book, parsed.chapter, parsed.v1, parsed.v2);
-      const secondary = state.secondary !== 'none' ? await getPassage(state.secondary, parsed.book, parsed.chapter, parsed.v1, parsed.v2) : null;
-      
-      // Render stepper
-      await renderStepper(ref, parsed, primary, secondary, dow);
+        // Load passage data
+        const primary = await getPassage(state.primary, parsed.book, parsed.chapter, parsed.v1, parsed.v2);
+        const secondary = state.secondary !== 'none' ? await getPassage(state.secondary, parsed.book, parsed.chapter, parsed.v1, parsed.v2) : null;
+        
+        // Render stepper
+        await renderStepper(ref, parsed, primary, secondary, dow);
+      } else {
+        // Show initial light view
+        initialView.classList.remove('hidden');
+        fullView.classList.add('hidden');
+      }
     }
 
     // Render the stepper flow
@@ -2436,6 +2475,18 @@
 
     // Today button: jump to study
     document.getElementById('todayBtn').onclick = ()=> nav('study');
+
+    // Start today's step button: begin the study
+    document.getElementById('startTodayStepBtn').onclick = async () => {
+      const ref = getThisWeekRef();
+      const currentStepKey = `ui:step:${ref}`;
+      
+      // Set current step to 1 (Read step)
+      LS.set(currentStepKey, 1);
+      
+      // Re-render study to show full view
+      await renderStudy();
+    };
 
     // Random blessing line in drawer
     const blessings = [
