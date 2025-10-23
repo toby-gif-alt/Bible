@@ -188,6 +188,21 @@
       </div>
     </section>
 
+    <!-- Bible Reader (Full Chapter with Paging) -->
+    <section id="reader" class="hidden">
+      <div class="fixed top-0 left-0 right-0 z-20 bg-slate-900 text-white shadow">
+        <div class="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between">
+          <button id="readerPrevChapter" class="px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 active:scale-[0.98]" aria-label="Previous chapter">←</button>
+          <h2 id="readerTitle" class="font-semibold text-center flex-1">Book Chapter</h2>
+          <button id="readerNextChapter" class="px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 active:scale-[0.98]" aria-label="Next chapter">→</button>
+        </div>
+      </div>
+      
+      <div id="readerContent" class="mt-16 max-w-3xl mx-auto px-4 pb-20 space-y-3">
+        <!-- Verses will be rendered here -->
+      </div>
+    </section>
+
     <!-- About & Approach -->
     <section id="about" class="hidden">
       <div class="rounded-2xl bg-white shadow p-4">
@@ -268,7 +283,7 @@
   </div>
 
   <!-- Footer nav -->
-  <footer class="fixed bottom-0 inset-x-0 bg-white border-t safe">
+  <footer id="mainFooter" class="fixed bottom-0 inset-x-0 bg-white border-t safe">
     <div class="max-w-3xl mx-auto px-4 py-2 grid grid-cols-4 gap-2">
       <button class="p-2 rounded-lg hover:bg-slate-100" onclick="nav('home')">Home</button>
       <button class="p-2 rounded-lg hover:bg-slate-100" onclick="nav('study')">Study</button>
@@ -570,6 +585,17 @@
       for(const sec of document.querySelectorAll('main > section')) sec.classList.add('hidden');
       document.getElementById(id).classList.remove('hidden');
       if(id==='study') renderStudy();
+      
+      // Show/hide footer and header for reader
+      const mainFooter = document.getElementById('mainFooter');
+      const mainHeader = document.querySelector('header');
+      if(id === 'reader'){
+        mainFooter.classList.add('hidden');
+        if(mainHeader) mainHeader.classList.add('hidden');
+      } else {
+        mainFooter.classList.remove('hidden');
+        if(mainHeader) mainHeader.classList.remove('hidden');
+      }
     }
 
     // Drawer
@@ -819,11 +845,10 @@
       const currentWeekNum = state.weekOverride !== null ? state.weekOverride : (weekIndex() + 1);
       document.getElementById('currentWeekDisplay').innerText = currentWeekNum;
       
-      // Setup "Open full chapter" link
+      // Setup "Open full chapter" link - open in Reader instead of Bible
       document.getElementById('openFullChapterLink').onclick = (e) => {
         e.preventDefault();
-        nav('bible');
-        openRef(parsed);
+        openInReader(parsed.book, parsed.chapter, parsed.v1 || 1);
       };
 
       // Load passage data
@@ -2263,10 +2288,217 @@
     }
     function escapeHtml(s){ return String(s).replace(/[&<>]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c])) }
 
+    // ==================== BIBLE READER ====================
+    
+    // Get all books in canonical order (for navigation)
+    const ALL_BOOKS_ORDERED = [...BOOKS.OT, ...BOOKS.NT];
+    
+    // Reader state
+    let readerState = {
+      currentBook: null,
+      currentChapter: null,
+      focusVerse: null,
+      touchStartX: 0,
+      touchEndX: 0
+    };
+
+    // Get next chapter (with book boundary handling)
+    function getNextChapter(book, chapter) {
+      const maxChapter = CHAPTER_COUNTS[book];
+      
+      if (chapter < maxChapter) {
+        // Next chapter in same book
+        return { book, chapter: chapter + 1 };
+      } else {
+        // Go to next book, chapter 1
+        const bookIndex = ALL_BOOKS_ORDERED.indexOf(book);
+        if (bookIndex < ALL_BOOKS_ORDERED.length - 1) {
+          return { book: ALL_BOOKS_ORDERED[bookIndex + 1], chapter: 1 };
+        } else {
+          // Wrap to Genesis 1 (circular)
+          return { book: 'Genesis', chapter: 1 };
+        }
+      }
+    }
+
+    // Get previous chapter (with book boundary handling)
+    function getPreviousChapter(book, chapter) {
+      if (chapter > 1) {
+        // Previous chapter in same book
+        return { book, chapter: chapter - 1 };
+      } else {
+        // Go to previous book, last chapter
+        const bookIndex = ALL_BOOKS_ORDERED.indexOf(book);
+        if (bookIndex > 0) {
+          const prevBook = ALL_BOOKS_ORDERED[bookIndex - 1];
+          return { book: prevBook, chapter: CHAPTER_COUNTS[prevBook] };
+        } else {
+          // Wrap to Revelation 22 (circular)
+          return { book: 'Revelation', chapter: 22 };
+        }
+      }
+    }
+
+    // Open chapter in reader
+    async function openInReader(book, chapter, focusVerse = null) {
+      readerState.currentBook = book;
+      readerState.currentChapter = chapter;
+      readerState.focusVerse = focusVerse;
+      
+      // Save to localStorage
+      LS.set('reader:last', { book, chapter });
+      
+      // Navigate to reader
+      nav('reader');
+      
+      // Render chapter
+      await renderReaderChapter();
+      
+      // Scroll to focus verse if provided
+      if (focusVerse) {
+        setTimeout(() => {
+          const verseEl = document.getElementById(`reader-verse-${focusVerse}`);
+          if (verseEl) {
+            verseEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            // Flash effect
+            verseEl.classList.add('ring-2', 'ring-indigo-400', 'bg-indigo-50');
+            setTimeout(() => {
+              verseEl.classList.remove('ring-2', 'ring-indigo-400', 'bg-indigo-50');
+            }, 2000);
+          }
+        }, 300);
+      }
+    }
+
+    // Render chapter in reader
+    async function renderReaderChapter() {
+      const { currentBook, currentChapter } = readerState;
+      
+      // Update title
+      document.getElementById('readerTitle').textContent = `${currentBook} ${currentChapter}`;
+      
+      // Load verses
+      const contentEl = document.getElementById('readerContent');
+      contentEl.innerHTML = '<div class="text-sm text-slate-500">Loading…</div>';
+      
+      const primary = await getPassage(state.primary, currentBook, currentChapter, null, null);
+      const secondary = state.secondary !== 'none' ? await getPassage(state.secondary, currentBook, currentChapter, null, null) : null;
+      
+      // Render verses
+      const pairs = primary.map((v, i) => ({
+        n: v.n,
+        a: v.t,
+        b: secondary ? (secondary[i]?.t || '') : null
+      }));
+      
+      contentEl.innerHTML = pairs.map(p => `
+        <div class="p-3 rounded-xl bg-slate-50 transition-all duration-300" id="reader-verse-${p.n}">
+          <div class="text-slate-500 text-xs">${currentBook} ${currentChapter}:${p.n}</div>
+          <div class="mt-1">${escapeHtml(p.a)}</div>
+          ${p.b !== null ? `<div class="mt-2 text-sm border-t pt-2"><span class="text-slate-500 text-xs">${state.secondary}</span><br>${escapeHtml(p.b)}</div>` : ''}
+        </div>
+      `).join('');
+    }
+
+    // Navigate to next chapter
+    async function readerNextChapter() {
+      const next = getNextChapter(readerState.currentBook, readerState.currentChapter);
+      readerState.currentBook = next.book;
+      readerState.currentChapter = next.chapter;
+      readerState.focusVerse = null;
+      
+      // Save to localStorage
+      LS.set('reader:last', { book: next.book, chapter: next.chapter });
+      
+      await renderReaderChapter();
+      
+      // Scroll to top
+      document.getElementById('readerContent').scrollIntoView({ behavior: 'smooth' });
+    }
+
+    // Navigate to previous chapter
+    async function readerPreviousChapter() {
+      const prev = getPreviousChapter(readerState.currentBook, readerState.currentChapter);
+      readerState.currentBook = prev.book;
+      readerState.currentChapter = prev.chapter;
+      readerState.focusVerse = null;
+      
+      // Save to localStorage
+      LS.set('reader:last', { book: prev.book, chapter: prev.chapter });
+      
+      await renderReaderChapter();
+      
+      // Scroll to top
+      document.getElementById('readerContent').scrollIntoView({ behavior: 'smooth' });
+    }
+
+    // Setup reader controls
+    function setupReaderControls() {
+      // Button handlers
+      document.getElementById('readerPrevChapter').onclick = readerPreviousChapter;
+      document.getElementById('readerNextChapter').onclick = readerNextChapter;
+      
+      // Keyboard navigation
+      document.addEventListener('keydown', (e) => {
+        // Only handle in reader view
+        if (!document.getElementById('reader').classList.contains('hidden')) {
+          if (e.key === 'ArrowLeft') {
+            e.preventDefault();
+            readerPreviousChapter();
+          } else if (e.key === 'ArrowRight') {
+            e.preventDefault();
+            readerNextChapter();
+          }
+        }
+      });
+      
+      // Touch swipe gestures
+      const readerContent = document.getElementById('readerContent');
+      
+      readerContent.addEventListener('touchstart', (e) => {
+        readerState.touchStartX = e.changedTouches[0].screenX;
+      }, { passive: true });
+      
+      readerContent.addEventListener('touchend', (e) => {
+        readerState.touchEndX = e.changedTouches[0].screenX;
+        handleSwipe();
+      }, { passive: true });
+    }
+
+    // Handle swipe gesture
+    function handleSwipe() {
+      const swipeThreshold = 50; // minimum distance for swipe
+      const diff = readerState.touchStartX - readerState.touchEndX;
+      
+      if (Math.abs(diff) > swipeThreshold) {
+        if (diff > 0) {
+          // Swiped left - next chapter
+          readerNextChapter();
+        } else {
+          // Swiped right - previous chapter
+          readerPreviousChapter();
+        }
+      }
+    }
+
+    // Initialize reader on page load
+    function initReader() {
+      // Restore last opened chapter if available
+      const last = LS.get('reader:last', null);
+      if (last) {
+        readerState.currentBook = last.book;
+        readerState.currentChapter = last.chapter;
+      }
+      
+      // Setup controls
+      setupReaderControls();
+    }
+
     // Initial render
     renderHome();
     renderStudy();
     setBlessing();
+    initReader();
 
     // Service Worker Registration with Update Prompt
     if ('serviceWorker' in navigator) {
