@@ -1063,21 +1063,42 @@
     // Step 3: Questions
     async function renderQuestionsStep(parsed, dow) {
       const bodyEl = document.getElementById('stepBody3');
+      const ref = getThisWeekRef();
       const prompts = quickPrompts(dow, parsed);
+      const questionsKey = `questions:${ref}`;
+      const checkedState = LS.get(questionsKey, {});
       
       let html = `
         <div class="space-y-3">
           ${prompts.map((prompt, i) => `
             <div class="p-3 bg-slate-50 rounded-lg">
-              <div class="font-semibold text-sm mb-1">${i + 1}. ${prompt}</div>
+              <label class="flex items-start gap-3 cursor-pointer">
+                <input 
+                  type="checkbox" 
+                  class="question-checkbox w-4 h-4 mt-0.5 rounded" 
+                  data-question-index="${i}"
+                  ${checkedState[i] ? 'checked' : ''}
+                >
+                <span class="font-semibold text-sm flex-1">${prompt}</span>
+              </label>
             </div>
           `).join('')}
         </div>
       `;
       
       bodyEl.innerHTML = html;
+      
+      // Attach change handlers to save checkbox state
+      const checkboxes = bodyEl.querySelectorAll('.question-checkbox');
+      checkboxes.forEach(checkbox => {
+        checkbox.onchange = () => {
+          const index = parseInt(checkbox.dataset.questionIndex);
+          const currentState = LS.get(questionsKey, {});
+          currentState[index] = checkbox.checked;
+          LS.set(questionsKey, currentState);
+        };
+      });
     }
-
     // Helper: Extract claims from a commentary entry (summaries, excerpts, takeaways)
     function extractClaims(entry) {
       const claims = [];
@@ -1568,43 +1589,70 @@
       }
     }
 
+    // Get lens name from day number (1-7)
+    function getLensName(day) {
+      const lenses = {
+        1: 'Context',
+        2: 'Translation',
+        3: 'Word Study',
+        4: 'Theologians',
+        5: 'Cross-Refs',
+        6: 'Meditation',
+        7: 'Application'
+      };
+      return lenses[day] || 'Context';
+    }
+
+    // Generate 3 questions based on lens and reference text
+    function getLensQuestions(lens, refText) {
+      const parsed = parseRef(refText);
+      const book = parsed ? parsed.book : 'the passage';
+      
+      const questionTemplates = {
+        'Context': [
+          `Who is speaking in ${refText}, and who is the audience?`,
+          `What happened immediately before and after this passage?`,
+          `How does this verse move the argument or narrative forward in ${book}?`
+        ],
+        'Translation': [
+          `Which key words differ between your translations of ${refText}?`,
+          `How do these wording differences affect the meaning?`,
+          `Why might translators have chosen different words here?`
+        ],
+        'Word Study': [
+          `What are 1-2 key terms in ${refText} that need deeper study?`,
+          `How would you rephrase this verse in your own words?`,
+          `Where else in Scripture are these key terms used, and how?`
+        ],
+        'Theologians': [
+          `What is one point of theological agreement about ${refText}?`,
+          `What is one area of tension or different emphasis among interpreters?`,
+          `Which perspective on ${refText} do you find most persuasive, and why?`
+        ],
+        'Cross-Refs': [
+          `What earlier Old Testament passage echoes in ${refText}?`,
+          `How is ${refText} fulfilled or developed in the New Testament?`,
+          `What future hope or promise does ${refText} point toward?`
+        ],
+        'Meditation': [
+          `What aspect of God's character in ${refText} can you thank Him for?`,
+          `What sin or shortcoming does ${refText} reveal that you need to confess?`,
+          `What specific request does ${refText} prompt you to ask of God?`
+        ],
+        'Application': [
+          `What is one small, concrete step you can take this week based on ${refText}?`,
+          `Who in your life could you bless or encourage using ${refText}?`,
+          `When specifically this week will you act on what ${refText} teaches?`
+        ]
+      };
+      
+      return questionTemplates[lens] || questionTemplates['Context'];
+    }
+
     function quickPrompts(day, parsed){
-      const book = parsed.book;
-      if(day===1) return [
-        `Who are the main actors in ${book}?`,
-        `What is the immediate question or problem?`,
-        `How does this verse move the argument forward?`
-      ];
-      if(day===2) return [
-        `Which words differ between versions?`,
-        `What nuance changes if you swap those words?`,
-        `Draft a one‑sentence meaning that respects both.`
-      ];
-      if(day===3) return [
-        `Circle the key verb(s) and noun(s).`,
-        `Check a lexicon (original languages or a good dictionary).`,
-        `Write a paraphrase using today’s terms.`
-      ];
-      if(day===4) return [
-        `What attribute of God is emphasised?`,
-        `How do grace and obedience relate here?`,
-        `Where do traditions agree; where do they warn?`
-      ];
-      if(day===5) return [
-        `Find earlier echoes in the OT.`,
-        `Find fulfilment in Jesus/the Church.`,
-        `Find future hope in Revelation.`
-      ];
-      if(day===6) return [
-        `Turn the verse into a prayer.`,
-        `Sit in silence (1 min).`,
-        `Write a single “I will…” line.`
-      ];
-      return [
-        `Test your memory: speak it aloud.`,
-        `Write one concrete next step for this week.`,
-        `Share with a friend for encouragement.`
-      ];
+      const lens = getLensName(day);
+      const refText = `${parsed.book} ${parsed.chapter}:${parsed.v1 !== null ? parsed.v1 : 1}${parsed.v2 !== null ? '–' + parsed.v2 : ''}`;
+      return getLensQuestions(lens, refText);
     }
 
     // Generate age-appropriate group questions based on lens
