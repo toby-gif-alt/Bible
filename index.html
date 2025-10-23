@@ -154,6 +154,48 @@
             </div>
           </div>
 
+          <!-- Memorisation Mode Panel -->
+          <div class="border rounded-xl overflow-hidden">
+            <button id="memorisationToggle" class="w-full px-4 py-3 bg-slate-100 hover:bg-slate-200 flex items-center justify-between">
+              <span class="font-semibold">Memorisation Mode</span>
+              <span id="memorisationChevron">▼</span>
+            </button>
+            <div id="memorisationContent" class="p-4 bg-white hidden">
+              <div class="space-y-3">
+                <div>
+                  <label class="block text-sm font-semibold mb-2">Mode</label>
+                  <div class="flex gap-2">
+                    <button id="modeHide" class="px-3 py-2 rounded-lg bg-indigo-600 text-white text-sm">Hide words</button>
+                    <button id="modeFirstLetters" class="px-3 py-2 rounded-lg bg-slate-200 text-sm">First letters</button>
+                  </div>
+                </div>
+                
+                <div>
+                  <label class="block text-sm font-semibold mb-2">
+                    Difficulty: <span id="difficultyLabel">40%</span>
+                  </label>
+                  <input type="range" id="difficultySlider" min="10" max="90" value="40" class="w-full">
+                </div>
+
+                <div>
+                  <label class="block text-sm font-semibold mb-2">Timer</label>
+                  <div class="flex gap-2">
+                    <button class="timerBtn px-3 py-2 rounded-lg bg-slate-200 text-sm" data-seconds="30">30s</button>
+                    <button class="timerBtn px-3 py-2 rounded-lg bg-slate-200 text-sm" data-seconds="60">60s</button>
+                    <button class="timerBtn px-3 py-2 rounded-lg bg-slate-200 text-sm" data-seconds="90">90s</button>
+                    <button id="timerStop" class="px-3 py-2 rounded-lg bg-red-600 text-white text-sm hidden">Stop</button>
+                  </div>
+                  <div id="timerDisplay" class="mt-2 text-2xl font-bold text-center hidden"></div>
+                </div>
+
+                <div id="memoryStats" class="mt-3 p-3 bg-slate-50 rounded-lg text-sm hidden">
+                  <div class="font-semibold">Your Best</div>
+                  <div id="memoryStatsContent"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <div class="p-3 bg-slate-50 rounded-xl" id="lensContent">
             <!-- dynamic prompts / content per day -->
           </div>
@@ -463,6 +505,9 @@
         nav('bible');
         openRef(parsed);
       };
+
+      // Setup memorisation mode
+      setupMemorisationMode();
     }
 
     function renderLens(day, parsed){
@@ -896,7 +941,7 @@
       const data = {};
       for(let i=0; i<localStorage.length; i++){
         const k = localStorage.key(i);
-        if(k.startsWith('notes:') || k==='state') data[k] = localStorage.getItem(k);
+        if(k.startsWith('notes:') || k.startsWith('memory:') || k==='state') data[k] = localStorage.getItem(k);
       }
       const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
       const a = document.createElement('a');
@@ -936,6 +981,250 @@
       getPassage('KJV', p.book, p.chapter, p.v1, p.v2).then(vs => {
         document.getElementById('randomBlessing').innerHTML = `“${escapeHtml(vs.map(x=>x.t).join(' '))}” — ${r}`;
       });
+    }
+
+    // Memorisation Mode
+    let memoryState = {
+      mode: 'hide', // 'hide' or 'first-letters'
+      difficulty: 40,
+      timerActive: false,
+      timerInterval: null,
+      timerRemaining: 0
+    };
+
+    // Seeded random number generator for deterministic masking
+    function seededRandom(seed) {
+      let m = 0x80000000; // 2^31
+      let a = 1103515245;
+      let c = 12345;
+      let state = seed ? seed : Math.floor(Math.random() * (m - 1));
+      return function() {
+        state = (a * state + c) % m;
+        return state / (m - 1);
+      };
+    }
+
+    // Generate seed from ref + day
+    function getSeed(ref) {
+      const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+      const str = ref + today;
+      let hash = 0;
+      for (let i = 0; i < str.length; i++) {
+        hash = ((hash << 5) - hash) + str.charCodeAt(i);
+        hash = hash & hash; // Convert to 32bit integer
+      }
+      return Math.abs(hash);
+    }
+
+    // Mask text based on mode and difficulty percentage
+    function maskText(text, mode, percent) {
+      const words = text.split(/(\s+|[.,;:!?—"'()[\]{}])/);
+      const seed = getSeed(thisWeekRef());
+      const rng = seededRandom(seed);
+      
+      const masked = words.map(word => {
+        // Skip whitespace and punctuation
+        if (!word || /^\s+$/.test(word) || /^[.,;:!?—"'()[\]{}]+$/.test(word)) {
+          return word;
+        }
+        
+        // Apply masking based on random threshold
+        if (rng() * 100 < percent) {
+          if (mode === 'hide') {
+            // Replace with underscores matching word length
+            return '_'.repeat(word.length);
+          } else if (mode === 'first-letters') {
+            // Keep first letter + dots
+            if (word.length === 1) return word;
+            return word[0] + '.'.repeat(word.length - 1);
+          }
+        }
+        return word;
+      });
+      
+      return masked.join('');
+    }
+
+    // Setup Memorisation Mode
+    function setupMemorisationMode() {
+      const toggleBtn = document.getElementById('memorisationToggle');
+      const contentEl = document.getElementById('memorisationContent');
+      const chevron = document.getElementById('memorisationChevron');
+      const modeHideBtn = document.getElementById('modeHide');
+      const modeFirstLettersBtn = document.getElementById('modeFirstLetters');
+      const difficultySlider = document.getElementById('difficultySlider');
+      const difficultyLabel = document.getElementById('difficultyLabel');
+      const timerBtns = document.querySelectorAll('.timerBtn');
+      const timerStopBtn = document.getElementById('timerStop');
+      const timerDisplay = document.getElementById('timerDisplay');
+      const memoryStats = document.getElementById('memoryStats');
+      const memoryStatsContent = document.getElementById('memoryStatsContent');
+      
+      // Toggle panel
+      toggleBtn.onclick = () => {
+        const isHidden = contentEl.classList.contains('hidden');
+        contentEl.classList.toggle('hidden');
+        chevron.textContent = isHidden ? '▲' : '▼';
+        if (!isHidden) {
+          // Reset display when closing
+          applyMemoryMask(false);
+          stopTimer();
+        } else {
+          // Apply mask when opening
+          applyMemoryMask(true);
+          loadMemoryStats();
+        }
+      };
+
+      // Mode selection
+      modeHideBtn.onclick = () => {
+        memoryState.mode = 'hide';
+        modeHideBtn.className = 'px-3 py-2 rounded-lg bg-indigo-600 text-white text-sm';
+        modeFirstLettersBtn.className = 'px-3 py-2 rounded-lg bg-slate-200 text-sm';
+        applyMemoryMask(true);
+      };
+      
+      modeFirstLettersBtn.onclick = () => {
+        memoryState.mode = 'first-letters';
+        modeFirstLettersBtn.className = 'px-3 py-2 rounded-lg bg-indigo-600 text-white text-sm';
+        modeHideBtn.className = 'px-3 py-2 rounded-lg bg-slate-200 text-sm';
+        applyMemoryMask(true);
+      };
+
+      // Difficulty slider
+      difficultySlider.oninput = () => {
+        memoryState.difficulty = parseInt(difficultySlider.value);
+        difficultyLabel.textContent = memoryState.difficulty + '%';
+        applyMemoryMask(true);
+      };
+
+      // Timer buttons
+      timerBtns.forEach(btn => {
+        btn.onclick = () => {
+          const seconds = parseInt(btn.dataset.seconds);
+          startTimer(seconds);
+        };
+      });
+
+      timerStopBtn.onclick = () => {
+        stopTimer();
+      };
+    }
+
+    function applyMemoryMask(enabled) {
+      const passageTextEl = document.getElementById('studyPassageText');
+      if (!passageTextEl) return;
+      
+      if (!enabled || document.getElementById('memorisationContent').classList.contains('hidden')) {
+        // Restore original passage
+        renderStudy();
+        return;
+      }
+
+      // Get current passage text from verses
+      const ref = thisWeekRef();
+      const parsed = parseRef(ref);
+      
+      getPassage(state.primary, parsed.book, parsed.chapter, parsed.v1, parsed.v2).then(verses => {
+        const maskedHTML = verses.map(v => {
+          const maskedText = maskText(v.t, memoryState.mode, memoryState.difficulty);
+          return `<span class="text-slate-500 text-xs align-top mr-1">${v.n}</span>${escapeHtml(maskedText)}`;
+        }).join(' ');
+        
+        passageTextEl.innerHTML = maskedHTML;
+      });
+    }
+
+    function startTimer(seconds) {
+      stopTimer(); // Clear any existing timer
+      
+      memoryState.timerActive = true;
+      memoryState.timerRemaining = seconds;
+      
+      const timerDisplay = document.getElementById('timerDisplay');
+      const timerStopBtn = document.getElementById('timerStop');
+      
+      timerDisplay.classList.remove('hidden');
+      timerStopBtn.classList.remove('hidden');
+      
+      updateTimerDisplay();
+      
+      memoryState.timerInterval = setInterval(() => {
+        memoryState.timerRemaining--;
+        updateTimerDisplay();
+        
+        if (memoryState.timerRemaining <= 0) {
+          stopTimer();
+          toast('Time\'s up!');
+          saveMemoryAttempt(seconds);
+        }
+      }, 1000);
+    }
+
+    function stopTimer() {
+      if (memoryState.timerInterval) {
+        clearInterval(memoryState.timerInterval);
+        memoryState.timerInterval = null;
+      }
+      
+      memoryState.timerActive = false;
+      
+      const timerDisplay = document.getElementById('timerDisplay');
+      const timerStopBtn = document.getElementById('timerStop');
+      
+      timerDisplay.classList.add('hidden');
+      timerStopBtn.classList.add('hidden');
+    }
+
+    function updateTimerDisplay() {
+      const timerDisplay = document.getElementById('timerDisplay');
+      const minutes = Math.floor(memoryState.timerRemaining / 60);
+      const seconds = memoryState.timerRemaining % 60;
+      timerDisplay.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+      
+      // Color coding
+      if (memoryState.timerRemaining <= 10) {
+        timerDisplay.className = 'mt-2 text-2xl font-bold text-center text-red-600';
+      } else if (memoryState.timerRemaining <= 30) {
+        timerDisplay.className = 'mt-2 text-2xl font-bold text-center text-orange-600';
+      } else {
+        timerDisplay.className = 'mt-2 text-2xl font-bold text-center text-indigo-600';
+      }
+    }
+
+    function saveMemoryAttempt(timeUsed) {
+      const ref = thisWeekRef();
+      const key = `memory:${ref}`;
+      const stats = LS.get(key, { mode: memoryState.mode, bestTime: null, lastPercent: memoryState.difficulty });
+      
+      // Update best time if this is better (completed faster)
+      if (!stats.bestTime || timeUsed < stats.bestTime) {
+        stats.bestTime = timeUsed;
+        stats.mode = memoryState.mode;
+        stats.lastPercent = memoryState.difficulty;
+        LS.set(key, stats);
+        toast(`New best time: ${timeUsed}s!`);
+        loadMemoryStats();
+      }
+    }
+
+    function loadMemoryStats() {
+      const ref = thisWeekRef();
+      const key = `memory:${ref}`;
+      const stats = LS.get(key, null);
+      const memoryStats = document.getElementById('memoryStats');
+      const memoryStatsContent = document.getElementById('memoryStatsContent');
+      
+      if (stats && stats.bestTime) {
+        memoryStatsContent.innerHTML = `
+          <div class="text-xs text-slate-600">Mode: ${stats.mode === 'hide' ? 'Hide words' : 'First letters'}</div>
+          <div class="text-xs text-slate-600">Best time: ${stats.bestTime}s</div>
+          <div class="text-xs text-slate-600">Difficulty: ${stats.lastPercent}%</div>
+        `;
+        memoryStats.classList.remove('hidden');
+      } else {
+        memoryStats.classList.add('hidden');
+      }
     }
 
     // Helpers
