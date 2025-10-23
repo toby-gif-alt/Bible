@@ -1450,17 +1450,69 @@
     renderStudy();
     setBlessing();
 
-    // Service Worker Registration
+    // Service Worker Registration with Update Prompt
     if ('serviceWorker' in navigator) {
+      let refreshing = false;
+      
+      // Reload page when new service worker takes control
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (refreshing) return;
+        refreshing = true;
+        window.location.reload();
+      });
+
       window.addEventListener('load', () => {
         navigator.serviceWorker.register('/sw.js')
           .then((registration) => {
             console.log('Service Worker registered successfully:', registration.scope);
+            
+            // Check for updates periodically
+            setInterval(() => {
+              registration.update();
+            }, 60000); // Check every minute
+
+            // When a new SW is waiting, show update prompt
+            registration.addEventListener('updatefound', () => {
+              const newWorker = registration.installing;
+              
+              newWorker.addEventListener('statechange', () => {
+                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                  // New service worker is installed but waiting
+                  showUpdatePrompt(registration);
+                }
+              });
+            });
+
+            // Check if there's already a waiting service worker
+            if (registration.waiting) {
+              showUpdatePrompt(registration);
+            }
           })
           .catch((error) => {
             console.error('Service Worker registration failed:', error);
           });
       });
+    }
+
+    // Show update prompt toast
+    function showUpdatePrompt(registration) {
+      const updateToast = document.createElement('div');
+      updateToast.id = 'updateToast';
+      updateToast.className = 'fixed bottom-20 left-1/2 -translate-x-1/2 px-4 py-3 rounded-lg bg-indigo-600 text-white shadow-lg flex items-center gap-3 z-50';
+      updateToast.innerHTML = `
+        <span class="text-sm font-medium">Update available</span>
+        <button id="reloadBtn" class="px-3 py-1 rounded bg-white text-indigo-600 font-medium text-sm hover:bg-indigo-50 active:scale-95">
+          Reload
+        </button>
+      `;
+      document.body.appendChild(updateToast);
+
+      document.getElementById('reloadBtn').onclick = () => {
+        if (registration.waiting) {
+          // Tell the waiting service worker to skip waiting
+          registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+        }
+      };
     }
   </script>
 </body>
