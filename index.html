@@ -175,6 +175,17 @@
             </div>
           </div>
 
+          <!-- Cross-References Panel -->
+          <div class="border rounded-xl overflow-hidden">
+            <button id="xrefsToggle" class="w-full px-4 py-3 bg-slate-100 hover:bg-slate-200 flex items-center justify-between">
+              <span class="font-semibold">Cross-References</span>
+              <span id="xrefsChevron">▼</span>
+            </button>
+            <div id="xrefsContent" class="p-4 bg-white hidden">
+              <div id="xrefsList"></div>
+            </div>
+          </div>
+
           <div>
             <label class="block text-sm font-semibold">Your notes</label>
             <textarea id="studyNotes" class="w-full mt-1 border rounded-lg p-3 h-36" placeholder="Write prayers, observations, connections…"></textarea>
@@ -436,6 +447,9 @@
 
       // Load theology commentary
       await renderTheologians(ref, parsed);
+
+      // Load cross-references
+      await renderCrossReferences(ref, parsed);
 
       // Load notes
       const notesKey = `notes:${ref}`;
@@ -706,6 +720,117 @@
       }
       
       return `<p>${escapeHtml(synthesis)}</p>`;
+    }
+
+    // Cross-References rendering
+    async function renderCrossReferences(ref, parsed){
+      const listEl = document.getElementById('xrefsList');
+      const toggleBtn = document.getElementById('xrefsToggle');
+      const contentEl = document.getElementById('xrefsContent');
+      const chevron = document.getElementById('xrefsChevron');
+      
+      // Setup toggle handler
+      toggleBtn.onclick = () => {
+        const isHidden = contentEl.classList.contains('hidden');
+        contentEl.classList.toggle('hidden');
+        chevron.textContent = isHidden ? '▲' : '▼';
+      };
+
+      // Load cross-references data
+      try {
+        const response = await fetch(`xrefs/${parsed.book}.json`);
+        if(!response.ok) throw new Error('File not found');
+        const xrefsData = await response.json();
+        
+        // Build verse keys for current passage
+        const verseKeys = [];
+        for(let v = parsed.v1; v <= (parsed.v2 || parsed.v1); v++){
+          verseKeys.push(`${parsed.chapter}:${v}`);
+        }
+        
+        // Find matching cross-references
+        let allXrefs = [];
+        for(const key of verseKeys){
+          if(xrefsData[key]){
+            allXrefs.push({ verse: key, refs: xrefsData[key] });
+          }
+        }
+        
+        if(allXrefs.length === 0){
+          listEl.innerHTML = '<p class="text-sm text-slate-500">No cross-references recorded.</p>';
+          return;
+        }
+
+        // Render cross-references
+        let html = '';
+        for(const item of allXrefs){
+          html += `<div class="mb-4">`;
+          if(verseKeys.length > 1){
+            html += `<div class="text-sm font-semibold text-slate-700 mb-2">${parsed.book} ${item.verse}</div>`;
+          }
+          for(const xref of item.refs){
+            html += `<div class="mb-2">
+              <button class="xref-link text-sm text-indigo-600 hover:underline" data-ref="${escapeHtml(xref)}">${escapeHtml(xref)}</button>
+              <div class="xref-preview hidden mt-2 ml-4 p-3 bg-slate-50 rounded-lg border-l-2 border-indigo-400" data-ref="${escapeHtml(xref)}"></div>
+            </div>`;
+          }
+          html += `</div>`;
+        }
+        listEl.innerHTML = html;
+
+        // Attach click handlers for inline previews
+        for(const link of listEl.querySelectorAll('.xref-link')){
+          link.onclick = async (e) => {
+            e.preventDefault();
+            const xref = link.dataset.ref;
+            const previewEl = listEl.querySelector(`.xref-preview[data-ref="${CSS.escape(xref)}"]`);
+            
+            if(!previewEl.classList.contains('hidden')){
+              previewEl.classList.add('hidden');
+              return;
+            }
+
+            // Load and display preview
+            const xrefParsed = parseRef(xref);
+            if(!xrefParsed){
+              previewEl.innerHTML = '<p class="text-sm text-red-600">Invalid reference format.</p>';
+              previewEl.classList.remove('hidden');
+              return;
+            }
+
+            // Fetch 1-2 verses in primary translation
+            const limit = xrefParsed.v2 ? Math.min(xrefParsed.v2, xrefParsed.v1 + 1) : xrefParsed.v1;
+            const primary = await getPassage(state.primary, xrefParsed.book, xrefParsed.chapter, xrefParsed.v1, limit);
+            
+            let previewHtml = `<div class="text-xs text-slate-500 mb-1">${escapeHtml(xref)} — ${state.primary}</div>`;
+            previewHtml += `<div class="text-sm">${versesToHTML(primary)}</div>`;
+            
+            // If secondary translation is set, show compare line
+            if(state.secondary !== 'none'){
+              const secondary = await getPassage(state.secondary, xrefParsed.book, xrefParsed.chapter, xrefParsed.v1, limit);
+              previewHtml += `<div class="mt-2 pt-2 border-t text-xs text-slate-600">
+                <span class="text-slate-500">${state.secondary}:</span> ${versesToHTML(secondary)}
+              </div>`;
+            }
+            
+            previewHtml += `<div class="mt-2">
+              <button class="open-in-bible px-2 py-1 rounded bg-indigo-600 text-white text-xs hover:bg-indigo-500" data-ref="${escapeHtml(xref)}">Open in Bible</button>
+            </div>`;
+            
+            previewEl.innerHTML = previewHtml;
+            previewEl.classList.remove('hidden');
+
+            // Attach "Open in Bible" handler
+            const openBtn = previewEl.querySelector('.open-in-bible');
+            openBtn.onclick = () => {
+              nav('bible');
+              openRef(xrefParsed);
+            };
+          };
+        }
+      } catch(err) {
+        listEl.innerHTML = '<p class="text-sm text-slate-500">No cross-references recorded.</p>';
+      }
     }
 
     // Bible view
