@@ -759,7 +759,8 @@
       'blessed', 'blessing', 'truth', 'glory', 'glorify', 'glorified',
       'eternal', 'life', 'death', 'resurrection', 'cross', 'sacrifice',
       'sanctification', 'sanctify', 'sanctified', 'sin', 'sinned', 'sinners',
-      'repent', 'repentance', 'worship', 'prayer', 'praise'
+      'repent', 'repentance', 'worship', 'prayer', 'praise',
+      'word', 'god', 'lord', 'christ', 'jesus', 'messiah'
     ];
 
     // Helper to get day name
@@ -948,7 +949,7 @@
         const words = v.t.split(/(\s+|[.,;:!?—"'()[\]{}])/);
         const highlighted = words.map(word => {
           if (!word || /^\s+$/.test(word) || /^[.,;:!?—"'()[\]{}]+$/.test(word)) {
-            return word;
+            return escapeHtml(word);
           }
           
           // Check if word is a key term (case-insensitive)
