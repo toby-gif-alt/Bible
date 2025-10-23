@@ -159,6 +159,13 @@
           <h2 class="text-xl font-semibold" id="studyDayHeading">Monday Study</h2>
           <p class="text-sm text-slate-600 mt-1" id="studyVerseInfo"></p>
           <a href="#" id="openFullChapterLink" class="text-xs text-indigo-600 hover:underline mt-1 inline-block">Open full chapter →</a>
+          
+          <!-- Week Picker -->
+          <div class="mt-2 flex items-center gap-2 text-sm">
+            <span class="text-slate-600">Week:</span>
+            <span class="font-semibold" id="currentWeekDisplay">1</span>
+            <button id="changeWeekBtn" class="px-2 py-1 rounded bg-slate-200 hover:bg-slate-300 text-xs">Change…</button>
+          </div>
         </div>
 
         <!-- Stepper Container -->
@@ -240,6 +247,25 @@
       </div>
     </section>
   </main>
+
+  <!-- Week Picker Modal -->
+  <div id="weekPickerModal" class="fixed inset-0 z-50 hidden">
+    <div class="absolute inset-0 bg-black/40" id="weekPickerBackdrop"></div>
+    <div class="absolute inset-x-4 top-20 max-h-[70vh] max-w-2xl mx-auto bg-white rounded-2xl shadow-xl overflow-hidden">
+      <div class="p-4 border-b flex items-center justify-between bg-slate-50">
+        <h3 class="text-lg font-semibold">Select Week</h3>
+        <button id="weekPickerClose" class="p-2 rounded hover:bg-slate-200" aria-label="Close">✕</button>
+      </div>
+      <div class="p-4 overflow-y-auto thin" style="max-height: calc(70vh - 140px);">
+        <div class="mb-4">
+          <button id="jumpToThisWeekBtn" class="w-full px-4 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-500 font-semibold">
+            Jump to this week
+          </button>
+        </div>
+        <div id="weeksList" class="space-y-2"></div>
+      </div>
+    </div>
+  </div>
 
   <!-- Footer nav -->
   <footer class="fixed bottom-0 inset-x-0 bg-white border-t safe">
@@ -448,6 +474,7 @@
     state.primary = state.primary || 'WEB';
     state.secondary = state.secondary || 'none';
     state.groupMode = state.groupMode || false;
+    state.weekOverride = state.weekOverride || null;
     LS.set('state', state);
 
     // Generate COVERAGE queue (one verse per chapter for complete Bible)
@@ -576,9 +603,16 @@
 
     function thisWeekRef(){ return PLAN[weekIndex() % PLAN.length] }
 
+    function getThisWeekRef() {
+      if (state.weekOverride !== null) {
+        return PLAN[(state.weekOverride - 1) % PLAN.length];
+      }
+      return thisWeekRef();
+    }
+
     // Render home card
     function renderHome(){
-      document.getElementById('thisWeekRef').innerText = thisWeekRef();
+      document.getElementById('thisWeekRef').innerText = getThisWeekRef();
     }
 
     // Version file mapping (case-insensitive keys)
@@ -771,7 +805,7 @@
 
     // Study rendering
     async function renderStudy(){
-      const ref = thisWeekRef();
+      const ref = getThisWeekRef();
       const parsed = parseRef(ref);
       const dow = ((new Date().getDay()+6)%7)+1; // Mon=1..Sun=7
       
@@ -780,6 +814,10 @@
       document.getElementById('studyDayHeading').innerText = `${dayName} Study`;
       const verseRef = `${parsed.book} ${parsed.chapter}:${parsed.v1 !== null ? parsed.v1 : 1}${parsed.v2 !== null ? '–' + parsed.v2 : ''}`;
       document.getElementById('studyVerseInfo').innerText = `Verse: ${verseRef} — ${state.primary}`;
+      
+      // Update week display
+      const currentWeekNum = state.weekOverride !== null ? state.weekOverride : (weekIndex() + 1);
+      document.getElementById('currentWeekDisplay').innerText = currentWeekNum;
       
       // Setup "Open full chapter" link
       document.getElementById('openFullChapterLink').onclick = (e) => {
@@ -941,7 +979,7 @@
     // Step 2: Highlight
     async function renderHighlightStep(parsed, primary) {
       const bodyEl = document.getElementById('stepBody2');
-      const highlightKey = `ui:highlight:${thisWeekRef()}`;
+      const highlightKey = `ui:highlight:${getThisWeekRef()}`;
       let showHighlights = LS.get(highlightKey, true);
       
       // Generate highlighted text
@@ -1269,7 +1307,7 @@
         
         // Setup copy button
         document.getElementById('copyForTonightBtn').onclick = async ()=> {
-          const ref = thisWeekRef();
+          const ref = getThisWeekRef();
           const parsed = parseRef(ref);
           const verses = await getPassage(state.primary, parsed.book, parsed.chapter, parsed.v1, parsed.v2);
           const verseText = verses.map(v=>`${v.n} ${v.t}`).join(' ');
@@ -1931,7 +1969,7 @@
     // Mask text based on mode and difficulty percentage
     function maskText(text, mode, percent) {
       const words = text.split(/(\s+|[.,;:!?—"'()[\]{}])/);
-      const seed = getSeed(thisWeekRef());
+      const seed = getSeed(getThisWeekRef());
       const rng = seededRandom(seed);
       
       const masked = words.map(word => {
@@ -2034,7 +2072,7 @@
       }
 
       // Get current passage text from verses
-      const ref = thisWeekRef();
+      const ref = getThisWeekRef();
       const parsed = parseRef(ref);
       
       getPassage(state.primary, parsed.book, parsed.chapter, parsed.v1, parsed.v2).then(verses => {
@@ -2105,7 +2143,7 @@
     }
 
     function saveMemoryAttempt(timeUsed) {
-      const ref = thisWeekRef();
+      const ref = getThisWeekRef();
       const key = `memory:${ref}`;
       const stats = LS.get(key, { mode: memoryState.mode, bestTime: null, lastPercent: memoryState.difficulty });
       
@@ -2121,7 +2159,7 @@
     }
 
     function loadMemoryStats() {
-      const ref = thisWeekRef();
+      const ref = getThisWeekRef();
       const key = `memory:${ref}`;
       const stats = LS.get(key, null);
       const memoryStats = document.getElementById('memoryStats');
@@ -2138,6 +2176,82 @@
         memoryStats.classList.add('hidden');
       }
     }
+
+    // Week Picker Modal
+    const weekPickerModal = {
+      open() {
+        document.getElementById('weekPickerModal').classList.remove('hidden');
+        renderWeeksList();
+      },
+      close() {
+        document.getElementById('weekPickerModal').classList.add('hidden');
+      }
+    };
+
+    function renderWeeksList() {
+      const weeksListEl = document.getElementById('weeksList');
+      const currentWeek = weekIndex() + 1;
+      
+      let html = '';
+      for (let i = 0; i < PLAN.length; i++) {
+        const weekNum = i + 1;
+        const ref = PLAN[i];
+        const isCurrentWeek = weekNum === currentWeek;
+        const isSelected = state.weekOverride === weekNum;
+        
+        html += `
+          <button 
+            class="week-option w-full text-left px-4 py-3 rounded-lg border ${
+              isSelected ? 'bg-indigo-100 border-indigo-400' : 
+              isCurrentWeek ? 'bg-slate-100 border-slate-300' : 
+              'bg-white border-slate-200 hover:bg-slate-50'
+            }" 
+            data-week="${weekNum}">
+            <div class="flex items-center justify-between">
+              <div>
+                <span class="font-semibold">Week ${weekNum}</span>
+                ${isCurrentWeek ? '<span class="ml-2 text-xs bg-green-600 text-white px-2 py-0.5 rounded">Current</span>' : ''}
+                ${isSelected ? '<span class="ml-2 text-xs bg-indigo-600 text-white px-2 py-0.5 rounded">Selected</span>' : ''}
+              </div>
+              <span class="text-sm text-slate-600">${escapeHtml(ref)}</span>
+            </div>
+          </button>
+        `;
+      }
+      
+      weeksListEl.innerHTML = html;
+      
+      // Attach click handlers
+      const options = weeksListEl.querySelectorAll('.week-option');
+      options.forEach(option => {
+        option.onclick = () => {
+          const weekNum = parseInt(option.dataset.week);
+          selectWeek(weekNum);
+        };
+      });
+    }
+
+    function selectWeek(weekNum) {
+      state.weekOverride = weekNum;
+      LS.set('state', state);
+      weekPickerModal.close();
+      renderStudy();
+      toast(`Jumped to Week ${weekNum}`);
+    }
+
+    function jumpToThisWeek() {
+      state.weekOverride = null;
+      LS.set('state', state);
+      weekPickerModal.close();
+      renderStudy();
+      toast('Jumped to this week');
+    }
+
+    // Setup week picker handlers
+    document.getElementById('changeWeekBtn').onclick = () => weekPickerModal.open();
+    document.getElementById('weekPickerBackdrop').onclick = () => weekPickerModal.close();
+    document.getElementById('weekPickerClose').onclick = () => weekPickerModal.close();
+    document.getElementById('jumpToThisWeekBtn').onclick = () => jumpToThisWeek();
 
     // Helpers
     function toast(msg){
