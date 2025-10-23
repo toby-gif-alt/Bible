@@ -1,38 +1,46 @@
 // Service Worker for Bible Study PWA
 // Provides offline capability by caching resources
 
-const CACHE_NAME = 'bible-study-v1';
-const ASSETS_TO_CACHE = [
+const CACHE_VERSION = 'v1';
+const CACHE_NAME = `bible-study-${CACHE_VERSION}`;
+
+// Precache: index.html, manifest.webmanifest, the CSS/JS already in index.html, 
+// theology/commentary.json, and any xrefs we created
+const PRECACHE_ASSETS = [
   '/',
   '/index.html',
   '/manifest.webmanifest',
-  '/assets/icon-192.svg',
-  '/assets/icon-512.svg',
-  'https://cdn.tailwindcss.com'
+  'https://cdn.tailwindcss.com',
+  '/theology/commentary.json',
+  '/xrefs/John.json',
+  '/xrefs/Psalms.json',
+  '/xrefs/John-3-16.json'
 ];
 
 // Install event - cache essential assets
 self.addEventListener('install', (event) => {
-  console.log('[SW] Installing service worker...');
+  console.log('[SW] Installing service worker version:', CACHE_VERSION);
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then((cache) => {
-        console.log('[SW] Caching app shell');
-        return cache.addAll(ASSETS_TO_CACHE);
+        console.log('[SW] Precaching app shell and resources');
+        return cache.addAll(PRECACHE_ASSETS);
       })
-      .then(() => self.skipWaiting())
+      .catch((error) => {
+        console.error('[SW] Precaching failed:', error);
+      })
   );
 });
 
-// Activate event - clean up old caches
+// Activate event - clean old caches
 self.addEventListener('activate', (event) => {
-  console.log('[SW] Activating service worker...');
+  console.log('[SW] Activating service worker version:', CACHE_VERSION);
   event.waitUntil(
     caches.keys()
       .then((cacheNames) => {
         return Promise.all(
           cacheNames
-            .filter((name) => name !== CACHE_NAME)
+            .filter((name) => name.startsWith('bible-study-') && name !== CACHE_NAME)
             .map((name) => {
               console.log('[SW] Deleting old cache:', name);
               return caches.delete(name);
@@ -43,45 +51,62 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Fetch event - serve from cache, fallback to network
+// Stale-while-revalidate strategy for dynamic content
+async function staleWhileRevalidate(request) {
+  const cache = await caches.open(CACHE_NAME);
+  const cachedResponse = await cache.match(request);
+  
+  const fetchPromise = fetch(request).then((networkResponse) => {
+    if (networkResponse && networkResponse.status === 200) {
+      cache.put(request, networkResponse.clone());
+    }
+    return networkResponse;
+  }).catch((error) => {
+    console.log('[SW] Network fetch failed:', error);
+    return null;
+  });
+
+  // Return cached response immediately if available, otherwise wait for network
+  return cachedResponse || fetchPromise;
+}
+
+// Fetch event - serve from cache with different strategies
 self.addEventListener('fetch', (event) => {
+  const url = new URL(event.request.url);
+  
+  // Runtime cache (stale-while-revalidate) for /bibles/** and /xrefs/**
+  if (url.pathname.startsWith('/bibles/') || url.pathname.startsWith('/xrefs/')) {
+    event.respondWith(staleWhileRevalidate(event.request));
+    return;
+  }
+
+  // For precached assets, serve from cache first, then network
   event.respondWith(
     caches.match(event.request)
-      .then((response) => {
-        // Cache hit - return cached response
-        if (response) {
-          console.log('[SW] Serving from cache:', event.request.url);
-          return response;
+      .then((cachedResponse) => {
+        if (cachedResponse) {
+          return cachedResponse;
         }
 
-        // Clone the request
-        const fetchRequest = event.request.clone();
-
-        return fetch(fetchRequest).then((response) => {
+        return fetch(event.request).then((response) => {
           // Check if valid response
-          if (!response || response.status !== 200 || response.type !== 'basic') {
+          if (!response || response.status !== 200) {
             return response;
           }
 
-          // Clone the response
-          const responseToCache = response.clone();
-
-          // Cache the fetched resource for future use
-          caches.open(CACHE_NAME)
-            .then((cache) => {
-              // Only cache same-origin requests and JSON files
-              if (event.request.url.startsWith(self.location.origin) || 
-                  event.request.url.includes('.json')) {
-                console.log('[SW] Caching new resource:', event.request.url);
-                cache.put(event.request, responseToCache);
-              }
+          // Cache successful responses for same-origin requests
+          if (url.origin === location.origin) {
+            const responseToCache = response.clone();
+            caches.open(CACHE_NAME).then((cache) => {
+              cache.put(event.request, responseToCache);
             });
+          }
 
           return response;
         }).catch(() => {
           // Network failed and no cache available
-          console.log('[SW] Network failed, no cache available for:', event.request.url);
-          // Return a basic offline page or message
+          console.log('[SW] Network failed, no cache for:', event.request.url);
+          // Return index.html for document requests to handle offline navigation
           if (event.request.destination === 'document') {
             return caches.match('/index.html');
           }
@@ -90,7 +115,7 @@ self.addEventListener('fetch', (event) => {
   );
 });
 
-// Message event - for potential future communication with the app
+// Message event - for communication with the app
 self.addEventListener('message', (event) => {
   if (event.data && event.data.type === 'SKIP_WAITING') {
     self.skipWaiting();
